@@ -60,8 +60,21 @@ Add to `~/.claude/settings.json`:
 ```
 Effect: when you try to end a session after running the brief, the hook mechanically checks "were all the files that should be updated actually updated?" and blocks you if not — turning "I think I wrote it" into "the system won't let me cut corners."
 
-### 3.3 Build your roster (the most important step)
-The framework **includes a 5-account public starter** (⚠️ illustrative, NOT a recommendation — runs out of the box). Beginners: copy `references/example-roster.md` (the 5-account sample + a role-by-role template + how to find accounts), fill it in, and save to `$KOL_VAULT/references-roster.md` (🅰️ reads the roster from here; in 🅱️ just tell Claude). **These 5 lean semiconductors with no bear voice — add a skeptic before real use.** Rating/profiling method is in `references/account-roster.md`.
+### 3.3 Roster (5 accounts built in, ready to run)
+**`references/example-roster.md` already ships 5 high-profile public accounts as a starter — runs out of the box** (⚠️ illustrative, NOT a recommendation):
+
+| Role | Account |
+|------|---------|
+| Supply chain / memory | @jukan05 |
+| AI / semi supply chain | @aleabitoreddit (Serenity) |
+| Semis / optics · events | @nft_hu |
+| Memory narrative / US-listed | @xiaomustock |
+| Macro / cross-asset | @qinbafrank |
+
+- **To run now**: 🅰️ copy these 5 into `$KOL_VAULT/references-roster.md`; 🅱️ just tell Claude these 5 — you get a first brief immediately.
+- **For the long run**: replace with your own 8–15 via the methodology in `references/account-roster.md`. ⚠️ **These 5 lean semiconductors with no bear voice — add a skeptic before real use** (don't go all-bull).
+
+Selection principles (when expanding): cover your main threads / diverse viewpoints (analyst·trader·sell-side·macro) / keep 1–2 steady bears.
 
 Selection principles (see the roster template):
 - Cover the few main threads you care about (e.g. memory, optical, power semis…)
@@ -76,7 +89,7 @@ This is the core. The framework runs on the inputs you feed it — **the more ac
 
 | Info | Required? | When | Example |
 |------|-----------|------|---------|
-| **Roster** | ✅ Required | First setup | "I want to follow @account_a @account_b … these N" |
+| **Roster** | **5 starter accounts built in, ready to use** (only if you want to swap) | When swapping/expanding | use the built-in 5 / or "I want to follow @account_a @account_b … these N" |
 | **Holdings** | Needed for holdings monitoring | Setup + after each trade | "I hold 10 shares of $AAAA @ $50; 100 of $BBBB @ $12" (fictional) |
 | **Cash basis** | ⚠️ Required for Risk Budget | Setup + on change | "$X cash + $Y money-market" (**include near-cash, not just the trading-account balance**) |
 | **Timezone / window** | Has a default | Setup (or ad hoc) | "I'm in EST, split by natural day" / ad hoc "pull last 12h" |
@@ -98,7 +111,7 @@ A fresh vault is empty. The first time, just say:
 
 Claude will (this is SKILL **Step 0.0 first-time init**, 🅰️ flagship only):
 1. Create the directory skeleton (Daily/ Tickers/ Sectors/ Watchlist/ Weekly/) + **11 seed files** per `references/vault-skeleton.md`: references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster
-2. Ask for your holdings, cash, roster, timezone (if not yet given)
+2. Ask for your holdings, cash, timezone (roster can start with the **built-in 5 starter**; swap later if you like)
 3. Pull the roster once and produce the first daily brief
 
 After that, daily use is just "run KOL watch." (🅱️ quick-brief mode needs no init — skip this step.)
@@ -163,6 +176,6 @@ The framework bundles no live/paid source (sanitized out). SKILL Step 5.6 leaves
 
 1. `export KOL_VAULT=...`
 2. Wire the hook (optional)
-3. Tell Claude your roster + holdings + cash (incl. money-market)
+3. Tell Claude your holdings + cash (incl. money-market); roster can start with the **built-in 5 starter**
 4. Say "initialize the vault and run KOL watch"
 5. After that, "run KOL watch" daily; whenever you fill, say one line "I bought/sold …"
