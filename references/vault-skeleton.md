@@ -201,3 +201,19 @@ updated: YYYY-MM-DD
 ## 候选清单
 | 账号 | 被谁引用 | 次数(7d) | 主题 | 评估 |
 ```
+
+## _coverage-ledger.md — Ticker/Sector 最后信号台账（coverage-audit 用）
+
+```markdown
+---
+type: coverage-ledger
+updated: YYYY-MM-DD
+note: 每个 Ticker/Sector 的最后信号日期（真实最后被提及，非文件 mtime、非 grep 未来财报日）。coverage-audit.sh 据此判归档（>14天且非持仓/Orders）。
+---
+# Coverage Ledger
+## Tickers
+| Ticker | last-seen | 持仓? | 备注 |
+## Sectors
+| Sector | last-seen | 持仓连带 | 备注 |
+```
+> 跑日报处置 BUILD/ARCHIVE 候选后更新本表的 last-seen。Sectors/Archive/ 在首次 sector 归档时建（含 README）。

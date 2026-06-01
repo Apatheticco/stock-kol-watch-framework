@@ -150,6 +150,24 @@ $VAULT/
 
 ---
 
+## 📅 更新节奏分层（日维度 vs 周维度 vs 事件触发）— ⚠️ 别混
+
+> roster 评级/画像是**周维度**（日频绝不动评级），但 Candidate-Roster 的"累积外部账号"是**日维度**——容易混。下表锁死节奏。
+
+### 🟢 日维度（每次跑日报；前 7 个 hook 强制 mtime=当天）
+`Daily/<date>.md` · **Spotlight.md · Daily-Index.md · Portfolio.md · Orders.md · Macro.md · _Sectors-Index.md · Watchlist/Candidate-Roster.md（这 7 个 hook 强制）** · 当天有信号的 `Sectors/*.md`+`Tickers/*.md` · `_last-pull.md` · `_coverage-ledger.md` · `Research/Read/`（当天有卖方变动才建）· coverage-audit BUILD 候选检测。
+- ⚠️ Candidate-Roster 日维度 = **只累积 RT/QT 外部账号**，**不做升级判定**。
+
+### 🔵 周维度（周末跑周报 Step 10.7；不要在日频做）
+`Weekly/<W##>.md` · **`references-roster` 评级 review（⚠️ 日频绝不评/不升降）** · **画像深化（5 维）** · KOL 事件日志 · **Candidate-Roster 升级判定**（≥2 源 ≥3 次/7 天 → 提议入池）· **Ticker 归档 + Sector 归档执行**（平时 coverage-audit 只"提示候选"，执行在周末）· 决策质量复盘 · 基准对比。
+
+### 🟠 事件触发
+决策 1周/1月/3月回顾（到 prompt 日期）· 财报 · 用户买卖动作（即时更 Decisions-Journal/Portfolio/Tickers）。
+
+> **自检铁律**：① 评级/画像出现在日频=错（周维度）；② 归档"执行"出现在日频=错（日频只提示候选）；③ hook 强制的文件必须全是日维度。
+
+---
+
 ## 工作流（按顺序）
 
 ### Step 0.0 — 首次初始化（🅰️ 旗舰版首次运行必做）⚠️
@@ -160,7 +178,7 @@ $VAULT/
 
 **做法**：
 1. 建目录：`$KOL_VAULT/{Daily,Tickers,Tickers/Archive,Sectors,Sectors/Archive,Watchlist,Weekly,Research/Read}`。
-2. 按 [references/vault-skeleton.md](references/vault-skeleton.md) 的种子结构创建那 11 个文件（空骨架即可，今日 mtime）。
+2. 按 [references/vault-skeleton.md](references/vault-skeleton.md) 的种子结构创建那 12 个文件（空骨架即可，今日 mtime）。
 3. 问用户：**持仓（标的/成本/数量）+ 现金口径（含货基/近现金）+ 关注名单 roster + 时区**，填进 `Portfolio.md` 和 `references-roster.md`。
 4. `_last-pull.md` 的 `last_cutoff_utc` 设为"现在 − 24h"（首次无历史窗口）。
 5. 初始化完成后再进 Step 0 正常流程。
@@ -378,7 +396,9 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 - **周度按"信号质量"复盘评级**（信号密度 / 独特 alpha / actionable 程度 / 可验证性噪音比 / 活跃度立场变化），**非"喊的票涨没涨"**。
 - **画像深化**（5 维：独特 alpha / 风格 tell / 盲区打折项 / 最佳用法 / 关系网）每周精修，不需用户批；**评级变动 + 候选入 roster 需用户批**。
 
-**Ticker 归档 audit**：过去 7 天 0 提及（非持仓/非 pending）→ 移 Tickers/Archive/。KOL 再提及 → 移回。
+**Ticker 归档 audit**：过去 7 天 0 提及（非持仓/非 pending）→ 移 Tickers/Archive/。KOL 再提及 → 移回。⚠️ 以 `_coverage-ledger.md` last-seen 为准，别 grep 文件内日期（会被未来财报日期污染）。
+
+**Sector 归档 audit（与 Ticker 对称）**：某 `Sectors/<X>.md` **连续 14 天 0 新硬信号且无持仓连带** → 移 `Sectors/Archive/`（建该文件夹 + README）；roster 再给硬信号 → 移回。平时 coverage-audit 的 Sector 段提示候选，**执行在周末**。Sector 此前只增不减，本规则补上折叠。
 
 ### Step 10.8 — 📐 衍生状态校准（强制）
 
@@ -396,6 +416,12 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 ### Step 10.9 — 🚪 收尾门禁（落盘完整性校验）⚠️ 强制
 
 > **为什么**：写完 Daily + dashboard 容易当成终点，漏掉 Sectors / ticker。本门禁把"逐文件确认"变成强制最后一步，用 mtime 实测代替"我以为写了"。
+
+#### 🔍 10.9.0 — 覆盖审计（⚠️ 强制）— 修"该建没建 / 久未提没归档"根因
+> 门禁只查"声明的文件动没动"（mtime），查不了 ① 该新建的没建（高频标的全靠人"注意到"）② 久未提的没归档。**机械补法**：跑 `scripts/coverage-audit.sh <今天 tool-results 目录>`：
+> - **🆕 BUILD 候选**：≥5 文件提及（🔴 强）/3-4（🟡）、无 ticker 文件、非 crypto/大盘巨头 → agent **逐个判定：建档/仅记 Daily/噪音剔除（写理由）**，强候选未处置=门禁不算过。
+> - **🗄️ ARCHIVE 候选**：读 `_coverage-ledger.md`，last-seen >14 天且非持仓/Orders。
+> 跑完更新 `_coverage-ledger.md` 的 last-seen（日股/非 $cashtag 名脚本会漏判，手动补）。
 
 跑完 Step 10 + 10.8 后，机械地逐项 `ls` mtime，凡当日有信号的文件 mtime 必须=当天：
 

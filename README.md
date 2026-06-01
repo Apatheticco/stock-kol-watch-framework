@@ -119,7 +119,7 @@ references/
   account-roster.md           如何建/评/养你的关注名单（方法论模板）
   example-roster.md           起步 roster 模板（按角色配齐 + 怎么找账号）
   output-templates.md         日报 / 标的 / 板块 三份落盘模板
-  vault-skeleton.md           首次初始化的 11 个种子文件结构
+  vault-skeleton.md           首次初始化的 12 个种子文件结构（含 _coverage-ledger）
 scripts/
   daily-gate-check.sh         收尾门禁 Stop hook（mtime + 板块同步机械校验）
   filter_tweets.py            把 raw 推文 dump 按时间窗过滤成 markdown

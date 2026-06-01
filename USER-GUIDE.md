@@ -105,7 +105,7 @@ export KOL_VAULT="/path/to/your/vault/Stock-Watch"
 > **"初始化一下 vault，然后跑一下 KOL"**
 
 Claude 会（对应 SKILL 的 **Step 0.0 首次初始化**，仅 🅰️ 旗舰版需要）：
-1. 按 `references/vault-skeleton.md` 建目录骨架（Daily/ Tickers/ Sectors/ Watchlist/ Weekly/）+ **11 个种子文件**：references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster
+1. 按 `references/vault-skeleton.md` 建目录骨架（Daily/ Tickers/ Sectors/ Watchlist/ Weekly/）+ **12 个种子文件**：references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster / _coverage-ledger
 2. 问你持仓、现金、时区（关注名单可先用**内置的 5 个 starter**，想换再说）
 3. 拉一遍 roster，产出第一份日报
 

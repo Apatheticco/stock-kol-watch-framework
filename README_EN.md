@@ -122,10 +122,11 @@ references/
   account-roster.md            How to build/rate/maintain your roster (methodology)
   example-roster.md            Starter roster template (roles to fill + how to find accounts)
   output-templates.md          Daily / ticker / sector landing templates
-  vault-skeleton.md            Seed structure for the 11 files created on first init
+  vault-skeleton.md            Seed structure for the 12 files created on first init
 scripts/
   daily-gate-check.sh          Close-out gate Stop hook (mtime + sector-sync checks)
   filter_tweets.py             Filter a raw tweet dump to a time window → markdown
+  coverage-audit.sh            Coverage audit: cashtag frequency from dumps → BUILD/ARCHIVE candidates (prevents missed ticker/sector files)
   pre-commit-privacy-scan.sh   Pre-commit scan (blocks personal paths / real handles / secrets)
 ```
 

@@ -104,7 +104,7 @@ A fresh vault is empty. The first time, just say:
 > **"Initialize the vault, then run KOL watch"**
 
 Claude will (this is SKILL **Step 0.0 first-time init**, 🅰️ flagship only):
-1. Create the directory skeleton (Daily/ Tickers/ Sectors/ Watchlist/ Weekly/) + **11 seed files** per `references/vault-skeleton.md`: references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster
+1. Create the directory skeleton (Daily/ Tickers/ Sectors/ Watchlist/ Weekly/) + **12 seed files** per `references/vault-skeleton.md`: references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster / _coverage-ledger
 2. Ask for your holdings, cash, timezone (roster can start with the **built-in 5 starter**; swap later if you like)
 3. Pull the roster once and produce the first daily brief
 

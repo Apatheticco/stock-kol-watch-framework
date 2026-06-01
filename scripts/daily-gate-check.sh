@@ -24,7 +24,7 @@ DAILY="$VAULT/Daily/$TODAY.md"
 MISS=()
 
 # (1) 每次日报必更新的文件 mtime=今天
-for f in "Spotlight.md" "Daily/Daily-Index.md" "Sectors/_Sectors-Index.md" "Portfolio.md" "Orders.md"; do
+for f in "Spotlight.md" "Daily/Daily-Index.md" "Sectors/_Sectors-Index.md" "Portfolio.md" "Orders.md" "Macro.md" "Watchlist/Candidate-Roster.md"; do
   [ "$(mday "$VAULT/$f")" = "$TODAY" ] || MISS+=("mtime过期: $f")
 done
 
