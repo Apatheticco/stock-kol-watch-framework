@@ -2,7 +2,7 @@
 
 > **三份模板**：日报（按日期）+ 每标的笔记（累积，Tickers/）+ 每板块笔记（累积，Sectors/）。
 > 实际内容由 LLM 根据当日数据填充，模板只锁结构和命名。
-> ⚠️ 日报实际采用**两区骨架**（状态区 OVERWRITE + 事件流区 APPEND，见 SKILL Step 10.2）。下面的 Part 结构嵌进状态区。
+> ⚠️ 日报实际采用**两区骨架**（状态区 OVERWRITE + 事件流区 APPEND，见 SKILL Step 9.6）。下面的 Part 结构嵌进状态区。
 
 ## 日报固定 Part
 

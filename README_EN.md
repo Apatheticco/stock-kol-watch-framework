@@ -99,7 +99,7 @@ Say "quick brief / just try it" → 🅱️; "full version / run the daily" → 
    export KOL_VAULT="/path/to/your/vault/Stock-Watch"
    ```
 2. **Build your roster**: **runs out of the box — ships a 5-account public starter roster** (`references/example-roster.md`, ⚠️ illustrative, NOT a recommendation), copy it and go. Replace/expand into your own 8–15 complementary accounts via the methodology in `references/account-roster.md` (**keep at least 1–2 steady bears — don't let the list go all-bull**).
-3. **Wire a data source**: the reference implementation uses the `mcp__followin__*` MCP (tweets / quotes / sell-side / signals). Swap in another tweet/market MCP by replacing the calls — the methodology is unchanged.
+3. **Wire a data source**: the reference implementation uses the `mcp__followin__*` MCP (tweets / quotes / sell-side / signals). Swapping in another tweet/market MCP is **not free** — you edit the `mcp__followin__*` calls in SKILL.md (~7 spots) + the `extract_tweets()` JSON schema in `filter_tweets.py`; the methodology (windowing / distillation / landing / gates) is unchanged.
 4. **(Optional) enable the hook**: wire `scripts/daily-gate-check.sh` as a Claude Code Stop hook for mechanical landing checks:
    ```json
    { "hooks": { "Stop": [ { "hooks": [ { "type": "command",

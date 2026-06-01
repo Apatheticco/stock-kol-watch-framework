@@ -102,7 +102,7 @@
 4. **（可选）启用 hook**：把 `scripts/daily-gate-check.sh` 配成 Claude Code Stop hook，做机械落盘校验：
    ```json
    { "hooks": { "Stop": [ { "hooks": [ { "type": "command",
-     "command": "bash /path/to/scripts/daily-gate-check.sh" } ] } ] } }
+     "command": "bash ~/.claude/skills/stock-kol-watch/scripts/daily-gate-check.sh" } ] } ] } }
    ```
 
 ## 用法
@@ -136,7 +136,7 @@ scripts/
 - 本框架从一套实际运行的个人系统提炼而来，**已剔除私有信息**：无个人路径/用户名、不含完整私有名单与持仓金额（仅附 5 个公开账号示例 starter）、无任何付费/实盘群数据源。
 - `references/account-roster.md` 是方法论模板；`references/example-roster.md` 附一个 **5 个公开账号的 starter**（⚠️ 示例非推荐，仅为开箱即跑）——长期名单你自己养。
 - "实盘仓位源"是一个**可选扩展点**（SKILL Step 5.6），框架本身不内置任何来源；要接你自己接，并注意同源计数 / "价值列≠成本" 等陷阱（文中已标）。
-- 数据源层默认 followin，可整体替换。
+- 数据源层默认 followin。**换源不是零成本**：需改 SKILL 里的 `mcp__followin__*` 调用（约 7 处）+ `filter_tweets.py` 的 `extract_tweets()` JSON schema；方法论（窗口/提炼/落盘/门禁）不变。
 
 ## License
 
