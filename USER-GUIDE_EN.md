@@ -83,23 +83,17 @@ Selection principles (see the roster template):
 
 ---
 
-## 4. ⚠️ What info you need to provide
+## 4. ⚠️ What you need to provide (just 3 things)
 
-This is the core. The framework runs on the inputs you feed it — **the more accurate, the more reliable the conclusions**:
+| Info | Example |
+|------|---------|
+| **Holdings** (ticker/cost/qty) | "I hold 10 shares of $AAAA @ $50" |
+| **Cash** (⚠️ incl. money-market/near-cash) | "$X cash + $Y money-market" |
+| **Report every fill** (lifeline of holdings accuracy) | "I bought 20 shares of $CCCC @ $30" |
 
-| Info | Required? | When | Example |
-|------|-----------|------|---------|
-| **Roster** | **5 starter accounts built in, ready to use** (only if you want to swap) | When swapping/expanding | use the built-in 5 / or "I want to follow @account_a @account_b … these N" |
-| **Holdings** | Needed for holdings monitoring | Setup + after each trade | "I hold 10 shares of $AAAA @ $50; 100 of $BBBB @ $12" (fictional) |
-| **Cash basis** | ⚠️ Required for Risk Budget | Setup + on change | "$X cash + $Y money-market" (**include near-cash, not just the trading-account balance**) |
-| **Timezone / window** | Has a default | Setup (or ad hoc) | "I'm in EST, split by natural day" / ad hoc "pull last 12h" |
-| **Trade actions** | Holdings accuracy depends on it | Right after each fill | "I bought 20 shares of $CCCC @ $30" (fictional) |
-| **Data-source creds** | ✅ | When installing the MCP | followin (or whichever MCP) connection |
-| **Your thesis (optional)** | No | When you want something tracked | "I'm betting memory re-rates as growth — track the evidence" |
+> Everything else is handled: **roster** ships 5 built-in starters (swap later if you like); **timezone/window** has a default; **data source** is configured once when you install the MCP; thesis is optional.
 
-**Hard rules**:
-- **Position size/cost only comes from what you tell it** (no broker integration). If you trade and forget to say so → P&L, weightings, thesis all cascade wrong, silently. **Build the habit: say one line whenever you fill.**
-- Always report cash in full (incl. money-market / off-account). Otherwise it **refuses** to compute Risk-Budget red lines (it would rather report nothing than fabricate a denominator).
+**Two hard rules**: ① position size/cost only comes from what you tell it (no broker link) — **forget to report a fill → P&L / weightings / thesis silently cascade wrong**; ② report cash in full (incl. money-market), or it refuses to compute Risk Budget (won't fabricate a denominator).
 
 ---
 
