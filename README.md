@@ -28,6 +28,7 @@
 - **一份合并日报**（Daily/）—— 两区结构（状态区 OVERWRITE + 事件流区 APPEND），支持一天多次拉取无缝合并
 - **每标的累积笔记**（Tickers/）—— 价格快照 + 目标价追踪 + KOL 观点 + 反方 + 你的仓位
 - **每板块累积笔记**（Sectors/）—— 强度评级演变 + thesis + 反方信号
+- **研报中枢**（Research/Read/）—— 两层第三方深度：**卖方评级/目标价**（Step 5.6.5）+ **独立研究长文 thesis**（Step 5.6.6，第三方裁决 KOL/实盘争议、反方深度的主要来源），自动反链回 Tickers/Sectors
 - **决策闭环**（Decisions-Journal / Pre-Trade-Checklist）—— 每个决策记录"为什么"+ 1w/1m/3m 回顾，反哺买卖前 gate
 - **周报**（Weekly/）—— 12 节复盘，含基准对比 + 账号评级 review + 画像深化
 

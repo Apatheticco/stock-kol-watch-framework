@@ -1,7 +1,7 @@
 ---
 name: stock-kol-watch
 description: Stock KOL Watch — 把一组自选股票 KOL 账号的近 N 小时推文，转成"一份合并日报 + 每标的累积笔记 + 每板块累积笔记"的决策辅助系统。
-version: 1.0-framework
+version: 1.1-framework
 ---
 
 # Stock KOL Watch — 股票 KOL 观察日报框架
@@ -59,7 +59,7 @@ version: 1.0-framework
 ## 每账号亮点：逐条干货（保留数字/术语/链接）
 ```
 
-**🅱️ 模式跳过**：Step 0 的 vault 扫描、Step 5.6/5.6.5（除非用户当场喂实盘/卖方）、Step 10 全部落盘、Step 9.6 合并协议、Step 10.8 校准、Step 10.9 收尾门禁、Step 10.95 完整性审查、`_last-pull` 更新、周报、归档。
+**🅱️ 模式跳过**：Step 0 的 vault 扫描、Step 5.6/5.6.5（除非用户当场喂实盘/卖方）、**Step 5.6.6 独立研究宽扫可选**（轻量用户想做也能单跑）、Step 10 全部落盘、Step 9.6 合并协议、Step 10.8 校准、Step 10.9 收尾门禁、Step 10.95 完整性审查、`_last-pull` 更新、周报、归档。
 
 **🅱️ 模式仍然遵守（不可丢的纪律）**：
 - ✅ **拉取覆盖门禁**（Step 2）——仍要列覆盖表，不许偷工只拉几个。
@@ -155,7 +155,7 @@ $VAULT/
 > roster 评级/画像是**周维度**（日频绝不动评级），但 Candidate-Roster 的"累积外部账号"是**日维度**——容易混。下表锁死节奏。
 
 ### 🟢 日维度（每次跑日报；前 7 个 hook 强制 mtime=当天）
-`Daily/<date>.md` · **Spotlight.md · Daily-Index.md · Portfolio.md · Orders.md · Macro.md · _Sectors-Index.md · Watchlist/Candidate-Roster.md（这 7 个 hook 强制）** · 当天有信号的 `Sectors/*.md`+`Tickers/*.md` · `_last-pull.md` · `_coverage-ledger.md` · `Research/Read/`（当天有卖方变动才建）· coverage-audit BUILD 候选检测。
+`Daily/<date>.md` · **Spotlight.md · Daily-Index.md · Portfolio.md · Orders.md · Macro.md · _Sectors-Index.md · Watchlist/Candidate-Roster.md（这 7 个 hook 强制）** · 当天有信号的 `Sectors/*.md`+`Tickers/*.md` · `_last-pull.md` · `_coverage-ledger.md` · `Research/Read/`（当天有卖方变动 **或独立研究相关**才建）· coverage-audit BUILD 候选检测 · **独立研究宽扫（Step 5.6.6，每批必扫一遍深度子源，挑与持仓/Orders/活跃争议相关的取全文落 Read）**。
 - ⚠️ Candidate-Roster 日维度 = **只累积 RT/QT 外部账号**，**不做升级判定**。
 
 ### 🔵 周维度（周末跑周报 Step 10.7；不要在日频做）
@@ -304,6 +304,41 @@ mcp__followin__metrics(keywords=["TICKER"], asset_type="tradfi", limit=1)
 - **避免噪音**：consensus 变动 >5% 才记；analyst_grades 新增 entry 才记；无变化仅更新 `last_sell_side_sync` 时间戳。
 - **新 IPO（quiet period）**：标"暂无 sell-side coverage"，等首批 initiate 再跑。
 
+### Step 5.6.6 — 独立研究 ingest（⭐ 第三方深度层，区别于卖方）
+
+> **这是一个独立信号层「独立研究」**——区别于 Step 5.6.5 的卖方评级（投行口径）。独立研究 = **第三方独立分析师的长文 thesis**（如 Substack 深度），最适合给 KOL/实盘的**定性争议做深度对照 + 第三方裁决**，并给"不编数字"提供带依据的机构级锚。
+> **为什么单列**：卖方给"目标价/评级"（多偏多、利益相关），独立研究给"完整推理 + 中立裁决"（常含反方深度）。两者互补，不能混。
+
+**调用**：
+```
+news(sources=["research"], time_range="2d", verbosity="detail", limit=10~15)
+```
+
+**⚠️ 只保留独立深度，丢弃散户媒体（关键过滤）**：`sources=["research"]` 通常返回两个子源——
+| 子源 | 标识 | 处理 |
+|------|------|------|
+| **独立深度**（独立分析师长文）| `_source:"feeds"` + `category:"research"` | ✅ **唯一采用**。`verbosity=detail` 取全文提炼论点 → 相关的写 `Research/Read/YYYY-MM-DD-<source>-<TICKER>-<topic>.md` |
+| **散户财经媒体**（聚合站/快讯）| `_source:"fmp_news"` 一类 | ❌ **剔除**（标题级噪音，不入体系）|
+
+API 无参数单取深度子源 → **post-hoc 过滤**：只保留 `_source=="feeds"`（即 `category=="research"`），其余全丢。
+
+**捞法（实测要点）**：
+- **宽扫为主**（空 query + `time_range`，每日 1 次）= 最能捞出独立深度 → 过滤掉散户媒体后，扫剩下的标题，挑与**持仓 / Orders pending / 当前活跃争议**相关的取全文展开。
+- ⚠️ **窗口别太窄**：`time_range="1d"` 常扫出 0 条深度（窗口太窄漏判）→ **默认 `2d` + 必要时定向**，避免漏。
+- **per-ticker query 命中率低**（纯 ticker 常只返散户媒体）→ 不作主力；想定向找某标的深度，用**该标的的独特主题短语**（而非纯代码）。
+- ⚠️ **坑**：泛主题 query（如 "AI capex"）可能被**同名 ticker 劫持**（某代码=该词）→ 用独特短语或走宽扫。
+
+**节奏分层**：
+- 🟢 **日维度**：宽扫 1 次（挑相关）+ 持仓标的定向（有 thesis 变动才落 Read）。
+- 🔵 **周维度**：板块级独立研究盘点（周报）。
+- 🟠 **事件触发**：财报后专项拉该标的深度研究。
+
+**落盘 + 联动**：
+- 重大深度 → `Research/Read/`（YAML 带 `source: 独立研究` / `source_quality` / tickers / sectors）。
+- **反链回 Tickers/Sectors thesis**（作"独立研究第三方 voice"），与 KOL/实盘争议**并置**——尤其把**反方深度**喂进对应 Sector 反方栏（独立研究常是反方唯一的深度来源）。
+- **去噪**：同一 thesis 不重复落；只在"新论点 / 新数据点 / 第三方裁决了某争议"时建笔记。
+- **第三方裁决价值**：当独立研究裁决了 KOL/实盘的某个争议（如"某标的财报后回调=预期满 vs 基本面破"），它给你的是 KOL 和实盘都给不了的中立视角——但**独立研究本身也无胜率回环**，作"加权参考"不作"权威判决"。
+
 ### Step 6 — 提炼跨账号共识主题
 
 找**≥2 个独立账号**讨论同一标的/主题。每个主题：时间正序列引用（UTC + 账号 + URL + 论点）+ 标直接论点 vs 间接论据 + 综合判断（共识强度 强/中/弱 + 风险点）。
@@ -432,6 +467,7 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 | **Sectors 全板块扫描** | **逐行过 `_Sectors-Index` 的固定板块 + 动态主题**，每行落 ✅已更新 / ⚪判定无信号 / 🆕有信号未到建档阈值 三态之一，不许沉默跳过。有信号的已建档板块 mtime=当天；未建档按建档标准判定。⚠️ **只改 `_Sectors-Index` 日期不算 sweep**。**日报底部写机器可读声明** `<!-- sector-sync: <更新的板块文件名，空格分隔> -->`（无更新写 `none`）——hook 解析它并逐个验证每个声明的 `Sectors/<X>.md` mtime=当天。|
 | dashboard | Spotlight / Daily-Index / Portfolio / Macro 必更新 |
 | roster 扩展 | 有新 RT/QT 外部账号 → 追加 Candidate-Roster |
+| **独立研究宽扫（Step 5.6.6）** | **每批必扫一遍** `news(sources=["research"])` 深度子源（过滤掉散户媒体）：有与持仓/Orders/活跃争议相关的 → 取全文落 `Research/Read/` + 反链回 Tickers/Sectors；无相关 → 汇报里写"研究宽扫 N 篇，0 相关"。**不许沉默跳过**（否则系统性漏）。⚠️ 窗口默认 `2d`（`1d` 易扫空漏判）|
 
 **硬规则**：凡"漏掉" ≠ "判定无新信号"，每个持仓 ticker + 每个持仓相关 Sector 都必须被显式 touch 一次思考；mtime 实测优先于记忆；写不进时（如 iCloud dataless / EPERM）建桥接文件 `Tickers/_<标的>-待补-<日期>.md` 并标红"待补"。
 
