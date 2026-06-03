@@ -1,7 +1,7 @@
 ---
 name: stock-kol-watch
 description: Stock KOL Watch — 把一组自选股票 KOL 账号的近 N 小时推文，转成"一份合并日报 + 每标的累积笔记 + 每板块累积笔记"的决策辅助系统。
-version: 1.3-framework
+version: 1.4-framework
 ---
 
 # Stock KOL Watch — 股票 KOL 观察日报框架
@@ -103,8 +103,9 @@ version: 1.3-framework
 
 ```
 $VAULT/
-├── Daily/YYYY-MM-DD.md    <-- 日报
-├── Daily/Daily-Index.md   <-- 日报 TLDR 索引（30 秒回查）
+├── Daily/YYYY-MM-DD.md    <-- 日报（被周报汇总后移 Archive）
+├── Daily/Archive/*.md     <-- 归档旧日报（Daily-Index TLDR 仍在，链接照常解析）
+├── Daily/Daily-Index.md   <-- 日报 TLDR 索引（30 秒回查，永不归档）
 ├── Portfolio.md           <-- 持仓 Dashboard 总览
 ├── Spotlight.md           <-- 决策视图单页（持仓+pending+板块 hot）
 ├── Orders.md              <-- 待执行 trigger + 已执行日志
@@ -446,6 +447,8 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 **Ticker 归档 audit**：过去 7 天 0 提及（非持仓/非 pending）→ 移 Tickers/Archive/。KOL 再提及 → 移回。⚠️ 以 `_coverage-ledger.md` last-seen 为准，别 grep 文件内日期（会被未来财报日期污染）。
 
 **Sector 归档 audit（与 Ticker 对称）**：某 `Sectors/<X>.md` **连续 14 天 0 新硬信号且无持仓连带** → 移 `Sectors/Archive/`（建该文件夹 + README）；roster 再给硬信号 → 移回。平时 coverage-audit 的 Sector 段提示候选，**执行在周末**。Sector 此前只增不减，本规则补上折叠。
+
+**Daily 日报归档 audit（让 Daily/ 保持可扫）**：Daily/ 只放当前 ISO 周 + 未被周报汇总的近 7 天 daily；**被 Weekly 汇总的那一周的 daily + 任何 ≥7 天非当前周的 daily → 移 `Daily/Archive/`**（建文件夹 + README 清单）。⚠️ **不丢信息**：TLDR 在 Daily-Index（永不归档）、整周摘要在 Weekly、全文在 Archive，`[[YYYY-MM-DD]]` 链接照常解析（Obsidian 按 basename，跨文件夹有效）。移动前 grep 全 vault 把带路径的 `[[Daily/<日期>...]]` 改成 basename `[[<日期>]]`（带 `Daily/` 前缀的移动后会断）。
 
 ### Step 10.8 — 📐 衍生状态校准（强制）
 
