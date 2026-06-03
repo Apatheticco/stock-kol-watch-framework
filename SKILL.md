@@ -1,7 +1,7 @@
 ---
 name: stock-kol-watch
 description: Stock KOL Watch — 把一组自选股票 KOL 账号的近 N 小时推文，转成"一份合并日报 + 每标的累积笔记 + 每板块累积笔记"的决策辅助系统。
-version: 1.1-framework
+version: 1.2-framework
 ---
 
 # Stock KOL Watch — 股票 KOL 观察日报框架
@@ -439,7 +439,7 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 
 每次跑日报最后做（落盘后、汇报前）：
 1. **持仓现价 + 浮盈重算**（追加 Ticker 价格快照新行 + 更新 Portfolio）
-2. **Orders pending triggers 重算**：trigger 引用 50d/200d MA / 52w 低 → 重拉；MA 变化 >5% 或现价距 trigger <3% → 主动提醒用户
+2. **Orders pending triggers 重算**：trigger 引用 50d/200d MA / 52w 低 → 重拉；MA 变化 >5% 或现价距 trigger <3% → 主动提醒用户。**死 Orders 冷冻（省空转）**：trigger 飘离当前价 >25% 且该 order 连续 2 周无变动 → 移到 Orders「🧊 冷清单」，停止每日重算（只周度扫一次），汇报里点名"X 已冷冻"
 3. **Portfolio Risk Budget 占比重算**（单标的/单板块/相关板块合计/低流动性/现金 ratio）→ 突破红线 → 警报进 Part 6
 4. **Sectors 强度评级**：按当日走势 + KOL thesis + 反方重评，追加评级表
 5. **Macro 红灯重检**（利率/VIX/DXY/行业 ETF）
@@ -478,9 +478,11 @@ Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-P
 - 硬信号 = KOL 主动观点 / 实盘加减 / 卖方评级 PT 变动财报 / 政策并购内部人事件。**纯价格波动不算。**
 - 不到阈值 → 只记 Daily + index 标注，不建空文件。连续 14 天 0 新硬信号且无持仓连带 → 归档。
 
-### Step 10.95 — 🔬 完整性审查 pass（提炼校验）— 强制
+### Step 10.95 — 🔬 完整性审查 pass（提炼校验）— 条件触发
 
 > **背景**：门禁只查"文件碰没碰"，查不了"推文 dump 里每条材料是否都被提炼对、分到对的板块"。本 pass 补"提炼正确性"这层。
+>
+> **🔀 触发条件（省 subagent）**：✅ **派 subagent** = 当日**首个完整拉取**（全 roster、宽窗口）/ 财报·政策**事件日** / 当日**新建≥1 ticker 或 sector** / 落盘信号量大。⏭️ **内联自查即可（不派）** = 同日后续**瘦增量批次**（窗口 <8h、净新增少、无新建文件）——主 agent 自己对照 dump 与落盘扫一遍，汇报"完整性：内联自查 0 遗漏"。拿不准 → 派（宁多勿漏）。
 
 日报落盘后（门禁过后），**派 1 个 completeness-critic subagent**，给它：① 当天所有原始 tool-result dump 路径；② 当天落盘的 Daily + `_Sectors-Index` 信号列。
 
