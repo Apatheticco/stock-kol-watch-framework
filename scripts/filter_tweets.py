@@ -1,119 +1,154 @@
 #!/usr/bin/env python3
 """
-Filter raw mcp__followin__twitter tool-result files to a recent time window.
+filter_tweets.py — Stock KOL Watch Step 3 固化脚本（framework v1.6）
 
-Usage:
-    python filter_tweets.py \
-        --hours 24 \
-        --account account_a:/path/to/file1.txt \
-        --account account_b:/path/to/file2.txt \
-        --out /tmp/tweets_filtered.md
+把 mcp__followin__twitter(action="user_tweets") 的 tool-result dump 过滤成
+窗口内 digest（markdown），供日报提炼。取代每批重写的内联 Python。换别的 tweet MCP 时只需改 find_tweets()/parse_dt() 对应字段。
 
-Output: a single markdown file, one section per account, with each retained
-tweet on its own subsection containing UTC time, like count, view count,
-URL, and full text.
+用法:
+    python3 scripts/filter_tweets.py \
+        --cutoff 2026-06-10T02:12:00Z \
+        --out /tmp/digest_0610b2.txt \
+        /path/to/tool-results/mcp-followin-twitter-1781087*.txt
 
-Schema assumed: tool result JSON shape is
-{ data: { data: { tweets: [ {createdAt, text, url, likeCount, viewCount,
-                              isReply, ...}, ...] } } }
-This matches `mcp__followin__twitter(action="user_tweets")`. If you swap in a
-different tweet MCP, adjust extract_tweets() to that source's JSON shape — this
-file is the one place coupled to the data source's response format.
+行为（实战定型）:
+  - 递归扫 JSON 找 tweet 对象（有 text/full_text + createdAt/created_at 即算）
+  - 每个文件按 author.userName 多数票识别主账号（并行调用顺序可能错位）
+  - 只保留: 主账号本人 + createdAt >= cutoff + 按 tweet id 去重
+  - 每条输出: UTC + SGT 双时间戳 + [RT @x]/[QT @x: 摘要]/[reply] 标记 + 原推 URL + 全文
+  - stderr 打印每账号 in-window 计数（直接喂 Step 2 覆盖表）
+
+schema 变了 → 改这个脚本，不要回退到内联重写。
 """
 
 import argparse
-import datetime
 import json
-import pathlib
 import sys
+from datetime import datetime, timedelta, timezone
+from collections import Counter
+from pathlib import Path
+
+DT_FORMATS = (
+    "%a %b %d %H:%M:%S %z %Y",       # X API classic
+    "%Y-%m-%dT%H:%M:%S.%fZ",
+    "%Y-%m-%dT%H:%M:%SZ",
+)
 
 
-def parse_created_at(s: str) -> datetime.datetime:
-    """X API returns 'Wed May 22 14:50:43 +0000 2026'."""
-    return datetime.datetime.strptime(s, "%a %b %d %H:%M:%S %z %Y")
-
-
-def extract_tweets(path: pathlib.Path) -> list[dict]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    # Be liberal about the wrapper shape.
-    node = raw
-    for key in ("data", "data"):
-        if isinstance(node, dict) and key in node:
-            node = node[key]
-    if isinstance(node, dict) and "tweets" in node:
-        return node["tweets"]
-    # Some versions return tweets at top level.
-    if isinstance(node, list):
-        return node
-    return []
-
-
-def filter_account(name: str, path: pathlib.Path, cutoff: datetime.datetime) -> str:
-    tweets = extract_tweets(path)
-    lines = [f"## @{name}"]
-    kept = 0
-    for t in tweets:
-        if t.get("isReply"):
-            continue
+def parse_dt(s):
+    if not s:
+        return None
+    for fmt in DT_FORMATS:
         try:
-            ts = parse_created_at(t["createdAt"])
-        except (KeyError, ValueError):
+            d = datetime.strptime(s, fmt)
+            return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        except ValueError:
             continue
-        if ts < cutoff:
+    return None
+
+
+def parse_cutoff(s):
+    d = parse_dt(s)
+    if d is None:
+        sys.exit(f"bad --cutoff: {s!r} (want e.g. 2026-06-10T02:12:00Z)")
+    return d
+
+
+def find_tweets(obj, out):
+    """递归收集疑似 tweet 的 dict。"""
+    if isinstance(obj, dict):
+        if ("text" in obj or "full_text" in obj) and (
+            "createdAt" in obj or "created_at" in obj
+        ):
+            out.append(obj)
+        for v in obj.values():
+            find_tweets(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            find_tweets(v, out)
+
+
+def author_of(t):
+    return (t.get("author") or {}).get("userName") or t.get("screen_name")
+
+
+def sgt(d):
+    return (d + timedelta(hours=8)).strftime("%m-%d %H:%M")
+
+
+def mark_of(t):
+    mark = ""
+    rt = t.get("retweetedTweet") or t.get("retweeted_status")
+    qt = t.get("quotedTweet")
+    if rt:
+        mark = f"[RT @{author_of(rt) or '?'}]"
+    elif qt or t.get("is_quote_status"):
+        qa = author_of(qt or {}) or "?"
+        qtext = ((qt or {}).get("text") or "")[:160].replace("\n", " ")
+        mark = f"[QT @{qa}: {qtext}]"
+    if t.get("isReply") or t.get("in_reply_to_status_id"):
+        mark = "[reply]" + mark
+    return mark
+
+
+def process_file(path, cutoff):
+    """返回 (main_author, rows)；rows = [(dt, text, mark, url), ...] 时间正序。"""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"  !! {path}: {e}", file=sys.stderr)
+        return None, []
+    tweets = []
+    find_tweets(data, tweets)
+    counts = Counter(a for a in (author_of(t) for t in tweets) if a)
+    if not counts:
+        return None, []
+    main = counts.most_common(1)[0][0]
+    rows, seen = [], set()
+    for t in tweets:
+        if author_of(t) != main:
             continue
-        ts_str = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
-        like = t.get("likeCount", 0)
-        view = t.get("viewCount", 0)
-        url = t.get("url", "")
-        text = (t.get("text") or "").strip()
-        lines.append(f"### {ts_str} (likes:{like} views:{view}) {url}")
-        lines.append(text)
-        lines.append("")
-        kept += 1
-    if kept == 0:
-        lines.append("_(no tweets in window)_")
-    return "\n".join(lines) + "\n"
+        tid = t.get("id") or t.get("id_str")
+        if tid in seen:
+            continue
+        seen.add(tid)
+        cd = parse_dt(t.get("createdAt") or t.get("created_at"))
+        if not cd or cd < cutoff:
+            continue
+        text = (t.get("text") or t.get("full_text") or "").strip()
+        rows.append((cd, text, mark_of(t), f"x.com/{main}/status/{tid}"))
+    rows.sort(key=lambda r: r[0])
+    return main, rows
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--hours", type=float, default=24.0, help="time window in hours (default 24)"
-    )
-    ap.add_argument(
-        "--account",
-        action="append",
-        required=True,
-        metavar="HANDLE:PATH",
-        help="repeat per account. e.g. --account account_a:/tmp/abc.txt",
-    )
-    ap.add_argument("--out", required=True, help="output markdown path")
+    ap.add_argument("--cutoff", required=True,
+                    help="窗口下界 UTC, e.g. 2026-06-10T02:12:00Z（取自 $VAULT/_last-pull.md）")
+    ap.add_argument("--out", required=True, help="digest 输出路径")
+    ap.add_argument("files", nargs="+", help="tool-result dump 文件（可 glob 展开）")
     args = ap.parse_args()
 
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-        hours=args.hours
-    )
-
-    chunks = [
-        f"Cutoff (UTC): {cutoff.strftime('%Y-%m-%dT%H:%M:%SZ')}",
-        f"Window: last {args.hours}h",
-        "",
-    ]
-    for spec in args.account:
-        if ":" not in spec:
-            print(f"skip malformed: {spec}", file=sys.stderr)
+    cutoff = parse_cutoff(args.cutoff)
+    chunks = []
+    summary = []
+    for f in args.files:
+        main_author, rows = process_file(f, cutoff)
+        if main_author is None:
+            summary.append((f"?({Path(f).name})", 0))
             continue
-        handle, path = spec.split(":", 1)
-        p = pathlib.Path(path)
-        if not p.exists():
-            print(f"missing: {p}", file=sys.stderr)
-            chunks.append(f"## @{handle}\n_(file not found)_\n")
-            continue
-        chunks.append("=" * 28)
-        chunks.append(filter_account(handle, p, cutoff))
+        summary.append((main_author, len(rows)))
+        chunks.append(f"\n\n########## @{main_author} ({len(rows)} in-window) ##########")
+        for cd, text, mark, url in rows:
+            chunks.append(
+                f"\n--- {cd.strftime('%H:%MZ')} / SGT {sgt(cd)} {mark} {url}\n{text}"
+            )
 
-    pathlib.Path(args.out).write_text("\n".join(chunks), encoding="utf-8")
+    Path(args.out).write_text("\n".join(chunks) + "\n", encoding="utf-8")
     print(args.out)
+    print("--- in-window counts（喂覆盖表）---", file=sys.stderr)
+    for name, n in sorted(summary, key=lambda x: -x[1]):
+        print(f"  {name}: {n}", file=sys.stderr)
 
 
 if __name__ == "__main__":
