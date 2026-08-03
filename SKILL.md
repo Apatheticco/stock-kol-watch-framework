@@ -1,7 +1,7 @@
 ---
 name: stock-kol-watch
-description: Stock KOL Watch — 把一组自选股票 KOL 账号的近 N 小时推文，转成"一份合并日报 + 每标的累积笔记 + 每板块累积笔记"的决策辅助系统。
-version: 1.6-framework
+description: Stock KOL Watch — 把一组自选股票 KOL 账号的近 N 小时推文，转成"一份合并日报 + 每标的累积笔记 + 每板块累积笔记"的决策辅助系统。触发词：跑一下 KOL / 拉最新数据 / KOL watch / 股票观察 / 美股观察 / 快速简报 / 补一下昨晚的 / 开盘前汇总 / 跑日报 / stock KOL watch。
+version: 2.0-framework
 ---
 
 # Stock KOL Watch — 股票 KOL 观察日报框架
@@ -9,602 +9,409 @@ version: 1.6-framework
 > 把你**固定关注的一组股票 KOL 账号**的近 N 小时推文，转成"**一份合并日报 + 每个标的一份累积笔记 + 每个板块一份累积笔记**"。
 > 这是一套**信息整理 + 决策辅助**方法论，不是 signal generator——它帮你把散落的 KOL 信号结构化、可追溯、可复盘，**判断权永远在你手里**。
 
-> ⚠️ **这是脱敏框架版**。原版深度耦合作者的个人配置（vault 路径、实盘群、付费源、具体关注名单）。本版已剔除全部私有信息，保留可复用的方法论骨架。**首次使用前先做下面的「配置」。**
+> ⚠️ **这是脱敏框架版**。原版深度耦合作者的个人配置（vault 路径、实盘群、付费源、具体关注名单）。本版只保留核心主链；进阶层 7 节（实盘仓位源 / 卖方研报 ingest / 独立研究 ingest / digest 深读外包 / RT-QT 候选挖掘 / 归档审计 / 一条实测否决项）已移至 [references/advanced-extensions.md](references/advanced-extensions.md)，用顺手了再按需加回。
 
 ---
 
-## 🔧 配置（首次使用必做）
+## 🅰️🅱️ 运行模式（先选，🅱️ 是零门槛入口）
 
-1. **设 vault 路径**：本框架把结果落盘到一个 Obsidian（或任意 Markdown）vault。设环境变量或在脚本里改：
-   ```bash
-   export KOL_VAULT="/path/to/your/vault/Stock-Watch"
-   ```
-   所有文档路径都相对它。下文用 `$VAULT` 指代。
-2. **建你自己的 roster**：框架内置一个 **5 人公开参考 starter**（[references/example-roster.md](references/example-roster.md)，⚠️ 示例非推荐）可即刻跑；但 roster 是你的情报网，建议尽快照 [references/account-roster.md](references/account-roster.md) 的方法论换成你自选的 8-15 个。
-3. **接数据源**：本框架参考实现用 `mcp__followin__*`（推文 / 行情 / 卖方 / 信号）。这是**数据源适配层**——如果你用别的推文/行情 MCP，把对应调用替换即可，方法论不变。
-4. **（可选）启用收尾门禁 hook**：见 [scripts/daily-gate-check.sh](scripts/daily-gate-check.sh)，把它配成 Stop hook 做机械落盘校验。
-
----
-
-## 🅰️🅱️ 运行模式（两选一，每次开跑先确认）
-
-本框架有两种模式，**价值和门槛完全不同，开跑前先定**：
-
-| | 🅰️ 旗舰版（持久化 / vault） | 🅱️ 快速简报（无 vault / 单会话） |
+| | 🅱️ 快速简报（默认，无 vault） | 🅰️ 旗舰版（持久化 / vault） |
 |---|---|---|
-| **产出** | 日报 + 标的/板块累积笔记 + 决策闭环 + 周报，全部落盘 | **只在对话里**出一份当日简报，不落任何文件 |
-| **依赖** | Obsidian/Markdown vault + hook + 跨会话状态 | 只需 Claude + 数据源 MCP + 一份 roster |
-| **价值** | 累积、可复盘、决策学习闭环——**几天/几周后复利** | 即开即用、一次看完——**单次就有用** |
-| **适合** | 长期盯盘、想建自己的投研知识库 | 试用 / 偶尔扫一眼 / 没有 vault 的人 |
-| **失去什么** | — | 跨日累积、thesis 健康度趋势、决策回顾、周报、归档（都需要历史） |
+| **产出** | **只在对话里**出一份当日简报，不落文件 | 日报 + 标的/板块累积笔记 + 决策闭环 + 周报，全部落盘 |
+| **依赖** | 只需 Claude + 数据源 MCP + 一份 roster | Markdown vault + hook + 跨会话状态 |
+| **价值** | 即开即用——**单次就有用** | 累积、可复盘、决策学习闭环——**几天/几周后复利** |
 
-**怎么选**：
-- 用户明确说"**快速简报 / 简报 / 不落盘 / quick brief / 试一下**" → 🅱️。
-- 用户明确说"**完整版 / 落盘 / 跑日报 / 旗舰**" → 🅰️。
-- **没说**：检查 `KOL_VAULT` 是否设置 —— 设了 → 默认 🅰️；没设 → 默认 🅱️，并一句话告诉用户"当前无 vault，走快速简报模式；想长期累积可配 vault 跑旗舰版"。
+**怎么选**：说"快速简报 / 试一下"→ 🅱️；说"完整版 / 跑日报"→ 🅰️；没说 → 看 `KOL_VAULT` 是否设置（设了 🅰️，没设 🅱️ 并一句话告知"想长期累积可配 vault"）。
 
-### 🅱️ 快速简报模式 — 怎么跑（精简流程）
+**🅱️ 精简流程**：Step 1（定窗口，默认近 24h）→ Step 2（拉满 roster + 覆盖表）→ Step 3（窗口过滤）→ Step 4-7（识别 / 报价 / 持仓信号 / 共识 / 板块 / 每账号深度）→ Step 9（综合判断）→ 直接在对话里输出简报：
 
-**只跑这些**：Step 1（定窗口，无 `_last-pull` 则默认近 24h 或用户指定）→ Step 2（拉满 roster + 覆盖表）→ Step 3（窗口过滤，建议用 subagent）→ Step 3.5（顺手记 RT/QT 候选，仅在回复里提，不落盘）→ Step 4-6（识别投资内容 / 抓报价 / 共识主题）→ Step 6.5（板块识别）→ Step 7（每账号深度，按内容缩放）→ Step 9（综合判断）。
-
-**直接在对话里输出一份简报**（不写文件），结构：
 ```
 # 快速简报 — <窗口>
 ## 覆盖：N/N（✅/⚪/❌ 账号覆盖表）
 ## TLDR：1-3 条最重要
-## 持仓信号（仅当用户当场报了持仓）：标的 / 本窗口信号 / posture
-## 跨账号共识主题：每个带 @账号 + UTC + URL + verbatim 要点
+## 持仓信号（仅当用户当场报了持仓）
+## 跨账号共识主题（每条带 @账号 + UTC + URL + verbatim 要点）
 ## 板块强度速览
 ## 决策摘要（lite）：持仓 posture + 重点关注标的（带依据，不喊单）
-## 每账号亮点：逐条干货（保留数字/术语/链接）
+## 每账号亮点
 ```
 
-**🅱️ 模式跳过**：Step 0 的 vault 扫描、Step 5.6/5.6.5（除非用户当场喂实盘/卖方）、**Step 5.6.6 独立研究宽扫可选**（轻量用户想做也能单跑）、Step 10 全部落盘、Step 9.6 合并协议、Step 10.8 校准、Step 10.9 收尾门禁、Step 10.95 完整性审查、`_last-pull` 更新、周报、归档。
-
-**🅱️ 模式仍然遵守（不可丢的纪律）**：
-- ✅ **拉取覆盖门禁**（Step 2）——仍要列覆盖表，不许偷工只拉几个。
-- ✅ **不编数字**——所有价位/数量带 [数据]/[原则] 来源。
-- ✅ **数据带源**——每条带 UTC + 账号 + URL。
-- ✅ **不替用户决定买卖**；用户表达买卖意图仍跑 Pre-Trade 5 项 gate（在对话里跑，不落盘）。
-- ✅ 持仓信号需要用户**当场口头报持仓**（无 vault 读不到历史）。
-- ⚠️ 明确告诉用户：**本次不落盘**，跨日累积/thesis 健康度趋势/决策回顾这些**拿不到**，要的话改跑 🅰️。
-
-> 🅱️ 是把这套方法论降到"零配置可尝鲜"的入口；尝到价值想长期用，再升 🅰️。两者共用同一套提炼逻辑（Step 2-9），只在"落不落盘 + 校准/门禁"上分叉。
+**🅱️ 跳过**：Step 0.0/0 的 vault 相关、Step 9.6 合并协议、Step 10 全部落盘、10.7-10.95、`_last-pull` 更新。
+**🅱️ 仍然遵守**：拉取覆盖门禁 / 不编数字 / 数据带源 / 不替用户决定（买卖意图仍在对话里跑 Pre-Trade 5 gate）/ 持仓信号需用户当场口头报持仓 / 明确告知"本次不落盘"。
 
 ---
 
-## 核心约束（必读）
+## 🔧 配置（🅰️ 首次必做）
 
-### 1. 输出纪律
+1. **vault 路径**：`export KOL_VAULT="/path/to/your/vault/Stock-Watch"`，下文用 `$VAULT` 指代。
+2. **roster**：内置 5 人公开参考 starter（[references/account-roster.md](references/account-roster.md) 顶部，⚠️ 示例非推荐），可即刻跑；建议尽快换成自选的 8-15 个（**自带多空冲突，别全员看多**）。
+3. **数据源**：参考实现用 `mcp__followin__*`（推文/行情）。换别的推文/行情 MCP 把对应调用替换即可，方法论不变。
+4. **（可选）收尾门禁 hook**：把 [scripts/daily-gate-check.sh](scripts/daily-gate-check.sh) 配成 Stop hook，机械校验落盘。
 
-1. **MCP 路由**（参考实现用 followin，可换）：
-   - **价格 / quote** → `mcp__followin__metrics(keywords=[...], categories=["market"])`
-   - **目标价 / 评级 / 财报 / DCF** → `mcp__followin__metrics(keywords=[...], categories=["fundamentals"], verbosity="detail")`
-   - **新闻 / 推文搜索** → `mcp__followin__news` / `mcp__followin__twitter`
-   - **KOL 信号 / 实盘仓位** → `mcp__followin__signal`
-2. **不替用户判断买卖**——所有 KOL 观点带原文链接和日期，让用户自己交叉验证。
-   - ⚠️ **重大事件后必须等完整数据再分析**：财报 / 政策 / 黑天鹅后，第一次拉数据可能只是事件初期反应（如盘后初期价）。**强制规则**：重大事件后 1h 内主动再拉一次完整数据（含 day high/low/close 区间），不要 single snapshot 就下判断。双源交叉验证（metrics + WebSearch）。
-3. **剥离废话**：段子、鸡汤、纯情绪、纯转发吐槽、商业推广——一律不入正文。判断不准时倾向剔除而非保留，宁缺毋滥。
-4. **数据带源**：每条引用必须带 **UTC 时间戳 + 账号 + 原推 URL**，否则无法回头验证。
+---
 
-### 2. ⚠️ 策略不许编
+## 🔒 铁律（违反 = 当次产出不可信）
 
-每个具体数字（价格、数量、阈值、百分比）必须带 `[数据]` 或 `[原则]` 来源标签：
+1. **不喊单、不预测价格、不替用户做买卖决定**。KOL 喊了就引用带源，自己不背书。"我的仓位"数量/成本只按用户报的记，不主动改。不删旧日报。
+2. **不编数字**：所有具体价格/数量/阈值/百分比必须带 `[数据]` 或 `[原则]` 来源标签；没依据 = 只给定性方向，或直说"不知道，取决于你的风险承受能力/时间窗口/现金头寸"。
+   | ✅ 允许 | ❌ 禁止 |
+   |--------|--------|
+   | "回调到 50d MA $X [数据源] 建仓" | "回调到某价位建仓"（拍的数）|
+   | "TRIM 使仓位回到 30% [集中度原则]" | "TRIM 2 股"（拍的数）|
+3. **数据带源**：每条引用必带 UTC 时间戳 + 账号 + 原推 URL，否则无法回头验证。
+4. **剥离废话**：段子/鸡汤/纯情绪/纯转发吐槽/商业推广不入正文；拿不准倾向剔除，宁缺毋滥。
+5. **重大事件后等完整数据**：财报/政策/黑天鹅后第一次拉的可能是初期反应——1h 内再拉一次完整区间（day high/low/close），双源交叉验证，不 single snapshot 下判断。
+6. **全量拉取**：默认拉满整个 roster，不许挑几个核心账号代替（详见 Step 2 门禁）。
 
-| ✅ 允许 | ❌ 禁止 |
-|--------|--------|
-| "回调到 50d MA $X [数据源] 建仓" | "回调到某价位建仓"（凭感觉的数）|
-| "TRIM 比例使仓位回到 30% [集中度原则]" | "TRIM 2 股"（凭感觉的数）|
-| "跌穿 52w 低 $X [数据]" | "跌一点才有 setup"（凭感觉打折）|
+**MCP 路由**（参考实现，⚠️ 下列写法为**实测通过**的形式）：
 
-**没依据 = 不给数字**。只能给定性方向，或直接说"不知道，取决于你的风险承受能力 / 时间窗口 / 现金头寸"。
+| 要什么 | 调用 |
+|--------|------|
+| **报价** | `metrics(query="<T> live stock price quote", asset_type="tradfi", verbosity="concise")` |
+| **目标价/评级/财报** | `metrics(query="<公司全名> analyst price target", asset_type="tradfi")` |
+| 推文 | `twitter(action="user_tweets", user_name="<handle>")` |
 
-### 3. 落盘结构
+⚠️ **两个实测坑，照抄参数会直接失败**：
+1. **数组参数会被 schema 拒**（`keywords=[...]` / `categories=[...]` 报 `has type "string", want array"`）→ **一律走 `query` 字符串**。
+2. **只写 ticker 会路由到 fundamentals 拿不到价格**（返回三表+估值，无 price 字段）→ query 里**必须带 "live stock price quote" 这类明确意图词**，否则拿不到 `price/dayHigh/dayLow/yearHigh/yearLow`。
+
+---
+
+## 落盘结构（🅰️）
 
 ```
 $VAULT/
-├── Daily/YYYY-MM-DD.md    <-- 日报（被周报汇总后移 Archive）
-├── Daily/Archive/*.md     <-- 归档旧日报（Daily-Index TLDR 仍在，链接照常解析）
-├── Daily/Daily-Index.md   <-- 日报 TLDR 索引（30 秒回查，永不归档）
-├── Portfolio.md           <-- 持仓 Dashboard 总览
-├── Spotlight.md           <-- 决策视图单页（持仓+pending+板块 hot）
-├── Orders.md              <-- 待执行 trigger + 已执行日志
-├── Decisions-Journal.md   <-- 决策日志（含 1w/1m/3m 回顾）
-├── Pre-Trade-Checklist.md <-- 买卖前 5 项 gate
-├── Macro.md               <-- 宏观监控
-├── Tickers/*.md           <-- 个股累积（活跃）
-├── Tickers/Archive/*.md   <-- 归档（超 1 周无 KOL 提及）
-├── Sectors/*.md           <-- 板块累积
+├── Daily/YYYY-MM-DD.md        <-- 日报（两区结构，日内多批合并）
+├── Daily/Daily-Index.md       <-- 日报 TLDR 索引（30 秒回查，唯一 TLDR 落点）
+├── Portfolio.md               <-- 持仓总览 + 挂单小表 + Risk Budget
+├── Macro.md                   <-- 宏观红灯监控（喂 Pre-Trade gate #1）
+├── Decisions-Journal.md       <-- 决策日志（含 1w/1m/3m 回顾）
+├── Pre-Trade-Checklist.md     <-- 买卖前 5 项 gate
+├── references-roster.md       <-- 你的关注名单（Step 2 从这读）
+├── Tickers/*.md               <-- 个股累积笔记
+├── Sectors/*.md               <-- 板块累积笔记
 ├── Sectors/_Sectors-Index.md  <-- 全板块覆盖清单 manifest
-├── Watchlist/Candidate-Roster.md  <-- RT/QT 网络发掘的候选账号
-├── Weekly/YYYY-W##.md     <-- 周报
-└── _last-pull.md          <-- 窗口状态（防断档）
+├── Weekly/YYYY-W##.md         <-- 周报（5 节）
+└── _last-pull.md              <-- 窗口状态（防断档）
 ```
 
-**归档规则**（Tickers/Archive/）：roster KOL 过去 7 天 0 次提及该 ticker（topic level，不是文件 mtime）→ 归档。用户持仓 / Orders pending / 板块二阶标的**不归档**。任何 KOL 再提及 → 立即移回。每周末周报时 audit。
+种子结构见 [references/vault-skeleton.md](references/vault-skeleton.md)（8 个种子文件）。
 
 ---
 
-## 关注名册（Roster）
+## Roster
 
-**框架只内置一个 5 人公开参考 starter（[references/example-roster.md](references/example-roster.md)，示例非推荐，开箱即跑）。** 长期名单你自己建——见 [references/account-roster.md](references/account-roster.md)（含建名单 / 信号质量分级 rubric / 画像深化方法 / 何时增删）。
+**🅰️ 从 `$VAULT/references-roster.md` 读名单；🅱️ 用用户当场给的名单。** skill 自带的 [references/account-roster.md](references/account-roster.md) 是方法论模板 + starter，不是某人的真实名单。
 
-跑流程时默认拉满整个 roster。用户说"加 XX / 去掉 YY / 今天只看英文圈"→ 本次运行调整，并询问是否更新 roster 文件（不主动改）。
-
-**记录 roster 内的认知冲突对**（高信号）：同一标的有强多 vs 强空的两个账号 → 遇到必单独标注成对拉，不许只拉一边就给定调。
-
-### （可选）信号分层
-
-如果你有**多个层级**的信号源（如：自己付费订阅的顶级交易员 > 公开实盘仓位 > 普通推文 KOL），可建立分层权重——高层级信号可对冲低层级反方。**本框架不内置任何具体付费源**；如需，自行在此分层并标注来源。
+- 默认拉满整个 roster。用户说"加 XX / 去掉 YY"→ 本次运行调整，询问是否更新 roster 文件（不主动改）。
+- **认知冲突对**（同一标的强多 vs 强空的两个账号）= 高信号，遇到必成对拉，不许只拉一边就给定调。
+- 建名单 / 评级 rubric / 画像方法 / 何时增删 → [references/account-roster.md](references/account-roster.md)。
+- **评级/画像 = 周维度**（周报时做，日频绝不动评级；日频只累积事件）。
 
 ---
 
 ## 时间窗口
 
-**默认按用户本地自然日切分**（设你的时区）：
-
-- 一份 `YYYY-MM-DD.md` 覆盖本地 0:00 → 24:00。
-- 一天可多次拉取（晨/盘中/盘后），**都更新同一份日报**（见 Step 9.6 合并协议）。
-- **窗口下界从 `_last-pull.md` 读，不手动估**（见 Step 1 / P3）。
-
-**用户可调整**：「拉 12h」「最近一周」「最近 50 条」等明确指令按指令执行。**周末/节假日数据稀薄**，跑前提醒用户考虑放宽窗口或跳过。
-
----
-
-## 📅 更新节奏分层（日维度 vs 周维度 vs 事件触发）— ⚠️ 别混
-
-> roster 评级/画像是**周维度**（日频绝不动评级），但 Candidate-Roster 的"累积外部账号"是**日维度**——容易混。下表锁死节奏。
-
-### 🟢 日维度（每次跑日报；前 7 个 hook 强制 mtime=当天）
-`Daily/<date>.md` · **Spotlight.md · Daily-Index.md · Portfolio.md · Orders.md · Macro.md · _Sectors-Index.md · Watchlist/Candidate-Roster.md（这 7 个 hook 强制）** · 当天有信号的 `Sectors/*.md`+`Tickers/*.md` · `_last-pull.md` · `_coverage-ledger.md` · `Research/Read/`（当天有卖方变动 **或独立研究相关**才建）· coverage-audit BUILD 候选检测 · **独立研究宽扫（Step 5.6.6，每批必扫一遍深度子源，挑与持仓/Orders/活跃争议相关的取全文落 Read）**。
-- ⚠️ Candidate-Roster 日维度 = **只累积 RT/QT 外部账号**，**不做升级判定**。
-
-### 🔵 周维度（周末跑周报 Step 10.7；不要在日频做）
-`Weekly/<W##>.md` · **`references-roster` 评级 review（⚠️ 日频绝不评/不升降）** · **画像深化（5 维）** · KOL 事件日志 · **Candidate-Roster 升级判定**（≥2 源 ≥3 次/7 天 → 提议入池）· **Ticker 归档 + Sector 归档执行**（平时 coverage-audit 只"提示候选"，执行在周末）· 决策质量复盘 · 基准对比。
-
-### 🟠 事件触发
-决策 1周/1月/3月回顾（到 prompt 日期）· 财报 · 用户买卖动作（即时更 Decisions-Journal/Portfolio/Tickers）。
-
-> **自检铁律**：① 评级/画像出现在日频=错（周维度）；② 归档"执行"出现在日频=错（日频只提示候选）；③ hook 强制的文件必须全是日维度。
+- **默认按用户本地自然日切分**（设你的时区）：一份 `YYYY-MM-DD.md` 覆盖本地 0:00→24:00，一天多次拉取都合并进同一份（Step 9.6）。
+- **窗口下界从 `_last-pull.md` 读，不手动估**（Step 1 / P3）。
+- 用户说"拉 12h / 最近一周"按指令。周末/节假日数据稀薄，跑前提醒。
+- **闭市/瘦窗口也要拉**：预期产出少 ≠ 不拉（非交易时段 KOL 仍在发推，且常是深度长文时段）。
 
 ---
 
 ## 工作流（按顺序）
 
-### Step 0.0 — 首次初始化（🅰️ 旗舰版首次运行必做）⚠️
+### Step 0.0 — 首次初始化（🅰️ 首次运行必做）
 
-> **为什么**：SKILL 引用十来个 vault 文件（Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster / references-roster）。**首次运行它们都不存在**——若直接跑，① 决策闭环/门禁缺结构靠即兴发挥会漂移，② 收尾门禁 hook 会因这些文件 mtime 检测不到而第一天就 `exit 2` 拦死。
+**触发**：`$KOL_VAULT/Portfolio.md` 不存在（或用户说"初始化 vault"）。
+1. 建目录 `$KOL_VAULT/{Daily,Tickers,Sectors,Weekly}`。
+2. 按 [references/vault-skeleton.md](references/vault-skeleton.md) 创建 8 个种子文件（空骨架，今日 mtime——否则门禁 hook 第一天就拦死）。
+3. 问用户：**持仓（标的/成本/数量）+ 现金口径（⚠️ 含货基/近现金）+ roster + 时区**，填 `Portfolio.md` 和 `references-roster.md`。
+4. `_last-pull.md` 的 `last_cutoff_utc` 设为"现在 − 24h"。
 
-**触发**：🅰️ 模式下 `$KOL_VAULT/Portfolio.md` 不存在（或用户说"初始化 vault"）。
-
-**做法**：
-1. 建目录：`$KOL_VAULT/{Daily,Tickers,Tickers/Archive,Sectors,Sectors/Archive,Watchlist,Weekly,Research/Read}`。
-2. 按 [references/vault-skeleton.md](references/vault-skeleton.md) 的种子结构创建那 12 个文件（空骨架即可，今日 mtime）。
-3. 问用户：**持仓（标的/成本/数量）+ 现金口径（含货基/近现金）+ 关注名单 roster + 时区**，填进 `Portfolio.md` 和 `references-roster.md`。
-4. `_last-pull.md` 的 `last_cutoff_utc` 设为"现在 − 24h"（首次无历史窗口）。
-5. 初始化完成后再进 Step 0 正常流程。
-
-**🅱️ 快速简报模式跳过本步**（不落盘，无需骨架）。
-
-### Step 0 — 扫描持仓 + 板块上下文 + 决策回顾到期（每次必做）
+### Step 0 — 开局扫描（每批必做）
 
 ```bash
-# 0a. 扫持仓
-grep -l "当前持仓" "$VAULT/Tickers/"*.md
-# 0b. 扫已建板块
-ls "$VAULT/Sectors/"*.md
-# 0c. 决策回顾到期扫描
-grep -E "1 周后回顾.*\(20[0-9]{2}-[0-9]{2}-[0-9]{2} prompt\)" "$VAULT/Decisions-Journal.md"
+cat "$VAULT/Portfolio.md"                              # 持仓权威源（数量/成本/现金）
+grep -l "我的仓位" "$VAULT/Tickers/"*.md               # 有仓位记录的 ticker（与 Portfolio 交叉核对）
+ls "$VAULT/Sectors/"*.md                               # 已建板块
+grep -E "回顾.*prompt" "$VAULT/Decisions-Journal.md"   # 决策回顾到期
 ```
 
-到期未填的回顾 → 在日报顶部加"📅 今日决策回顾提醒"（决策 # / 标的 / 当时 thesis / 当时价 / 现价 / 学习）。**不强制立刻填**，只提醒。
+> ⚠️ **持仓以 `Portfolio.md` 持仓总表为准**，Ticker 的「我的仓位」段是分标的流水（两者对不上 → 当场问用户，别自己挑一个信）。
 
-**P7 — 回顾必须反哺**：一旦某条回顾被填（用户给"对/错+为什么"），强制三连：① 更新 Decisions-Journal 该决策回顾字段 + 标 ✅对/❌错/⚪未定；② 若产生新教训 → 更新「决策模式归纳索引」；③ 若涉及"下次该先检查 X" → 写进 Pre-Trade-Checklist 对应 gate。
+- 到期未填的回顾 → 日报顶部加"📅 今日决策回顾提醒"（不强制立刻填，只提醒）。
+- **P7 回顾必反哺**：某条回顾被填（用户给"对/错+为什么"）→ 强制三连：① 更新该决策回顾字段 + 标 ✅/❌/⚪；② 新教训 → 更新「决策模式归纳索引」；③ 涉及"下次先检查 X" → 写进 Pre-Trade-Checklist 对应 gate。
+- **P1 仓位对账**：每批开头问一句"**持仓有变动吗？**"；每周末贴完整持仓表逐行确认。持仓/成本只来自用户口头告知——成交忘说 = 浮盈/占比/thesis 全链静默错。**现金口径必须完整**（含货基/账户外现金）；🔴 **分母没核实 = 不报 Risk Budget 红线 %**，只给定性 + 标"待确认"。
 
-#### P1 — 仓位对账（每日 1 句 + 每周 1 次完整）⚠️
+### Step 1 — 参数 + 窗口（P3）
 
-> **为什么**：Portfolio 的数量/成本**只来自用户口头告知**（多数人没接券商 API）。用户交易忘说 → 成本/数量错 → Risk Budget/浮盈/thesis 全链连锁错，且静默无告警。这是整条链的地基。
-- **每次跑日报**：开头问一句"**持仓有变动吗？**"。
-- **每周末**：贴完整持仓表让用户逐行确认（数量/成本）再算周度盈亏。
-- ⚠️ **现金口径必须完整**：对账"现金"要含**货币基金 / 账户外现金 / 其他近现金**，不只交易账户余额。
-- 🔴 **分母没核实 = 不报红线**：Risk Budget 是占比型指标，分母（总资产/现金）错则全错。base 存疑时只给定性方向 + 标"待确认总资产"，**禁止报具体 % 红线突破**。
+指令模糊（"跑一下 KOL"）→ 一句话确认窗口和名单；明确说"跑/补一下/按默认"→ 直接执行。
+**P3**：读 `_last-pull.md` 的 `last_cutoff_utc` = 窗口下界；窗口 = [它, now]；`>36h` → 日报标"⚠️ 断档 Nh"。跑完 Step 11 必更新 `_last-pull.md`——**只存机器状态 4 行 + 窗口历史表，❌ 不写批次 TLDR**（TLDR 唯一归宿 = `Daily-Index.md`；同一段话写两处必然漂移）。
 
-### Step 1 — 确认参数 + 窗口状态（P3）
-
-指令模糊（"跑一下 KOL"）→ 一句话确认窗口和名单。明确说"跑/开始/补一下/晚拉/按默认"→ 直接执行，不再问。
-
-**P3 — 窗口下界从状态文件读**：
-1. 读 `$VAULT/_last-pull.md` 的 `last_cutoff_utc` = 本次窗口下界。
-2. 本次窗口 = `[last_cutoff_utc, now]`。
-3. **断档检测**：`now - last_cutoff_utc > 36h` → 日报顶部标"⚠️ 断档 Nh，加大回溯窗口"，写 `gap_flag`。
-4. 跑完 Step 11 **必更新** `_last-pull.md`——⚡ **v1.6：此文件只存机器状态**（`last_cutoff_utc`/`last_pull_sgt`/`last_pull_window`/`gap_flag` 4 行）+ 一张纯时间戳的「窗口历史表」。**❌ 不写批次 TLDR**——TLDR 的唯一归宿是 `Daily/Daily-Index.md`（一处权威；同一段话写两处必然漂移）。
-
-### Step 2 — 并行拉取推文（整个 roster）
-
-**roster 从哪读**：🅰️ 模式从 `$KOL_VAULT/references-roster.md` 读名单；🅱️ 模式用用户当场给的名单。两种都不读 skill 自带的 `references/account-roster.md`（那是**方法论模板**，不是某人的真实名单）。
+### Step 2 — 并行拉取（整个 roster）
 
 ```
 mcp__followin__twitter(action="user_tweets", user_name="<handle>", include_replies=false)
 ```
 
-全部账号**并行调用**。返回 JSON 常超 token 限制被落盘到 tool-results。**正常现象，不要重试**。3 个以下账号失败 → 单独重试这几个，不要重试全部。
+全部账号**并行调用**。返回 JSON 常超 token 限制被落盘到 tool-results——正常现象，不要重试；3 个以下账号失败 → 只重试这几个。
+⚠️ **配额意识**：`twitter` 调用有月度配额（返回的 `meta.quota` 里有 `used/limit/remaining`，实测某账户 limit=2500；`metrics` 近乎无限）。每批消耗 ≈ roster 数 + 翻页数，`remaining` 低于当月预估用量时提醒用户，别默默烧完。
+**P2**：roster 里最高质量的几个 A+ 账号用 `include_replies=true`（alpha/反方常在回复里），回复条标 `[reply]`。
 
-**P2 — 高价值账号拉回复**：把 roster 里**最高质量的几个 A+ 账号**用 `include_replies=true`（他们常在回复里给 alpha / 反方，主推抓不到）。其余维持 `false`（平衡噪音）。回复条标 `[reply]`，反方/数字优先。
+⚠️ **P2.5 — 一次调用只返一页（实测 20 条），必须处理翻页**：高产账号或宽窗口（断档补拉）时，这 20 条**盖不住整个窗口**，剩下的会被**静默漏掉**——覆盖表照样显示"✅ 已拉 N 条"，看不出缺口。
+- Step 3 的脚本会机械检测并告警（"本页最早一条仍晚于 cutoff"）。
+- 见到告警 → 对该账号用返回里的 `next_cursor` 再拉一页，直到最早一条早于 cutoff，把多页 dump 一起喂给脚本（跨文件自动去重）。
+- **这条不能省**：账号级覆盖门禁保证"每个账号都拉了"，保证不了"每个账号的窗口都拉全了"。
 
 #### 🚪 拉取覆盖门禁（⚠️ 强制）
 
-> **为什么**：落盘门禁（Step 10.9）只保证"拉到的都写了"，保证不了"该拉的都拉了"。输入端的漏比落盘端更隐蔽——日报看起来完整，实际单边信息。
+> 落盘门禁只保证"拉到的都写了"，保证不了"该拉的都拉了"。输入端的漏更隐蔽——日报看起来完整，实际单边信息。
 
-**硬规则**：
-- **默认拉满整个 roster**，不许"挑几个核心账号"代替全量。除非用户明确说"只看 X"。
-- 列一张**覆盖表**，每个账号显式标：✅ 已拉 / ⚪ 已拉但窗口内无信号 / ❌ 拉取失败。**不许有账号不出现在表里。**
-- **来源可追溯**：引用某账号内容，该账号必须本次有实际 `user_tweets` 调用。禁止用"早先贴的/印象/跨会话记忆"冒充当日拉取；若用户手动喂的数据，明确标 `[用户提供，非当日拉取]`。
-- **A+ 账号零容忍漏拉**。
-- ⚠️ **search ≠ 拉取**：`twitter search` 只作补充验证，**绝不能替代 user_tweets 全量拉取**，也不能作为"无新信号"的唯一依据。原因：search 的 `$cashtag` 过滤对**不带 $ 标签的中文 KOL 系统性失效**。中文 KOL 必须 `user_tweets` 拉全文判断。
-- ⚠️ **闭市/瘦窗口也要拉**：预期产出少 ≠ 不拉（亚洲时段 roster 仍在发推）。
-- **认知冲突对必须成对拉**，不许只拉一边就给板块定调。
+- **默认拉满整个 roster**，除非用户明确说"只看 X"。
+- 列**覆盖表**，每个账号显式标 ✅ 已拉 / ⚪ 已拉无信号 / ❌ 拉取失败，**不许有账号缺席**。A+ 账号漏拉零容忍。
+- **来源可追溯**：引用某账号 = 本次必须有实际 `user_tweets` 调用；用户手动喂的标 `[用户提供，非当日拉取]`。
+- ⚠️ **search ≠ 拉取**：`twitter search` 只作补充，绝不替代 user_tweets 全量（`$cashtag` 检索对不带 $ 标签的中文 KOL 系统性失效）。
+- 认知冲突对必须成对拉。
 
-### Step 3 — 过滤时间窗口（⚡ v1.6 固化脚本，禁内联重写）
+### Step 3 — 过滤时间窗口（固化脚本，禁内联重写）
 
 ```bash
-python3 scripts/filter_tweets.py --cutoff <last_cutoff_utc> \
-    --out /tmp/digest_<日期批次>.txt <dump 文件...>
+python3 ~/.claude/skills/stock-kol-watch/scripts/filter_tweets.py \
+    --cutoff <last_cutoff_utc> --out /tmp/digest_<日期批次>.txt <dump 文件...>
 ```
 
-脚本（[scripts/filter_tweets.py](scripts/filter_tweets.py)，实战定型）：递归找 tweet 对象 + 按 `author.userName` 多数票识别每文件主账号（并行调用顺序可能错位）→ 按 cutoff 过滤去重 → 每条带 UTC+本地双时戳 + `[RT]/[QT]/[reply]` 标记 + URL → stderr 输出每账号计数（直接喂覆盖表）。**别每批重写内联脚本**——schema 变了改脚本本身（耦合点集中在 `find_tweets()`/`parse_dt()`）。
+脚本递归找 tweet 对象 → 按 `author.userName` 多数票识别主账号 → 过滤去重（**跨文件共享**，同账号被重试成两个 dump 不会重复）→ 每条带 UTC+本地双时戳 + `[RT]/[QT]/[reply]` 标记 + URL → stderr 输出每账号计数（直接喂覆盖表）。
+- 第二时戳默认用**本机时区**；跑在别的时区（如服务器 UTC）想要固定口径 → 加 `--tz-offset 8 --tz-label SGT`。
+- **`[QT]`/`[自引 QT]` 标记要认真读**：实测宏观类账号 7-11 成的推文是引用推——被引原文是数字的出处（"同源不是共识"靠它判），**自引**则是该账号在回看自己早先的判断（跨批验证/改口的最强信号）。没有标记的才是纯原创。
+- schema 变了改脚本本身（`find_tweets()`/`parse_dt()`/`dedupe_key()`/`mark_of()`），别回退内联重写。
 
-### Step 3.7 — 🤖 digest 深读外包（v1.6，省主上下文最大单项）
-
-> **为什么**：宽窗口的 digest 动辄 25K+ 字符，主 agent 全读 = 每批烧掉一大块上下文。深读是可外包的"提炼"，裁决不是。
-
-- **触发**：full 批（宽窗口/事件日/digest >25K 字符）→ **同步**派 1 个 digest-reader subagent，主 agent 不读 digest 全文；瘦批 / digest <15K → 主 agent 直读，不派。
-- **给它**：digest 路径 + 本批窗口 + 高优账号名单（你的 A+ 档）+ 用户持仓清单 + 已知对立账号对。
-- **输出契约（四件全要）**：① 每账号深度草稿——高优账号逐条展开（标题/UTC/URL/要点 bullet，**关键句 verbatim 原文**），低档账号压缩；② 信号清单（标的/事件/数字/建议落到哪个文件）；③ **反方信号单列**（最易被乐观叙事盖掉）；④ 持仓相关信号置顶。
-- **主 agent 责任不可外包**：裁决/分歧判断/落盘自己做；落盘前**抽查 3 个关键数字回 digest verbatim 核对**（防二手转录失真）；Step 10.95 的 completeness-critic 照常独立跑——**reader 产出 ≠ critic 校验，双盲**。
-- **回退**：发现 reader 丢 nuance（高优账号的反方没带回 / 数字转录错）→ 当批改回主读。
-
-### Step 3.5 — 🕸️ RT/QT 网络扫描
-
-从 roster 账号的 RT/QT 网络自动发掘候选账号：
-```python
-if tweet.retweetedTweet or tweet.quotedTweet:
-    external = tweet.(retweeted|quoted)Tweet.author.userName
-    if external not in roster:  # 排除 roster 自身互引
-        累积到 Watchlist/Candidate-Roster.md（被谁引用 / 日期 / 主题 / 示例）
-```
-**升级 trigger**（周末 review 判断）：被 ≥2 roster KOL 引用 ≥3 次/7 天 → 提议加入；A+ 账号专门点名"alpha 贡献者" → 立即评估；连续 2 周 0 引用 → archive。
-**排除**：已在 roster / 段子私人 / 与股票无关 / 默认头像 0 粉 / 机构官方账号。
+**📦 digest 太大就外包深读**：实测每条推文均值 ~1.5K 字符，**8-15 个账号的 24h digest ≈ 9-17 万字符（3.5-6.7 万 token）**——主 agent 全读会吃掉一大块上下文。
+**规则（单一阈值，别留空档）**：digest **>20K 字符 → 派 1 个 reader 子代理**做逐条提炼，主 agent 不读全文（契约见 [references/advanced-extensions.md](references/advanced-extensions.md) §4）；**≤20K 主 agent 直读**。拿不准就派。**裁决/落盘不可外包**，落盘前抽查 3 个关键数字回 digest verbatim 核对。
+（实测参考：5 账号 / 19 条 / 22.8h 窗口 = 21.5K 字符——**5 个账号就已过线**。）
 
 ### Step 4 — 识别投资内容
 
-**保留**：`$TICKER` cashtag / 公司基本面·技术面·催化剂·估值 / 相关宏观（监管、降息、ETF）/ 供应链非美股标的（日韩台半导体、A 股）→ 后者作"延伸标的"放共识，不单独建 ticker。
-**剔除**：段子 / 鸡汤 / 纯情绪 / 纯 retweet 无评论 / 商业推广 / 无关内容。
+**保留**：`$TICKER` cashtag / 基本面·技术面·催化剂·估值 / 相关宏观（监管、降息、ETF）/ 供应链非美股标的（作"延伸标的"放共识，不单独建 ticker）。
+**剔除**：段子 / 鸡汤 / 纯情绪 / 纯 RT 无评论 / 推广 / 无关内容（如加密交易所安全事件之于美股辖区）。
+⚠️ **赞助推文不等于推广贴**：实测遇到"完整宏观分析 + 文末一行 `本条由@XX赞助`"——**内容照收，但必须标注赞助方**（利益相关是打折项，读者要知道）。整条就是广告才剔除。
+⚠️ **自吹型自引**（"我早说过了/我给你们指明了方向"）无新增论据 → 剔除，但**原始论点若在窗口内另有原帖，收原帖**。
 
 ### Step 5 — 提取标的 + 抓报价
 
 ```
-mcp__followin__metrics(keywords=["TICKER"], asset_type="tradfi", limit=1)
+mcp__followin__metrics(query="<TICKER> live stock price quote", asset_type="tradfi", verbosity="concise")
 ```
-`asset_type="tradfi"` 必传；多 ticker 不要 batch（会被路由到 fundamentals），单调用并行。
-记录：name / price / change% / MC / 52w 高低 / 50d-200d MA / DCF / consensus PT / analyst grades。
 
-**⚠️ 持仓标的额外**：用 `categories=["market","fundamentals"]` + `query="<公司全名> analyst price target"` 调用（多类别 + 公司全名帮正确路由，解决同名 crypto token 误识别问题，如 LITE≠Litecoin、CRCL≠crypto），拿完整 PT 写入 Ticker 的「🎯 目标价追踪」段。误识别为 crypto 且无法纠正 → 标"暂无 PT 数据，待手动补"，**不要编 PT 数字**。
+`asset_type="tradfi"` 必传；多 ticker 单调用并行，不要 batch。返回 `price / change / open / previousClose / dayHigh / dayLow / yearHigh / yearLow / marketCap / volume`。
+
+⚠️ **三个必踩的坑（全部实测过）**：
+1. **`change` 是绝对美元，不是百分比**。实测 META `change: 31.13` / `previousClose: 556.71` → 真实涨幅 **+5.59%**，不是 +31%。**涨幅要自己算** `change / previousClose`，直接把 `change` 当 % 报出去 = 编数字（违反铁律 2）。
+2. **KOL 会打错 cashtag**。实测 `$APPL`（苹果实为 AAPL）查询返回 `total: 0`、空 results。**看到 0 结果先怀疑代码拼写**，标"代码存疑，未取到数据"，**不要拿相似公司的价格顶替**。
+3. **同名 crypto token 劫持**（LITE≠Litecoin）→ query 带公司全名。仍失败 → 标"暂无数据"，**不编**。
+
+**持仓标的额外**：另发一次 `query="<公司全名> analyst price target"` 取 consensus PT（返回 `targetConsensus/High/Low/Median`）。⚠️ consensus 只给当前聚合数，不含各家 PT 日期。
 
 ### Step 5.5 — 持仓标的特别处理
 
-对 Step 0 持仓标的，**共识阈值降为 1**（单账号提及也保留）。逐条标注操作信号：
+持仓标的**共识阈值降为 1**（单账号提及也保留），逐条标操作信号：
 
-| 信号 | 触发 | 含义 |
-|------|------|------|
-| 🟢 加仓 setup | 新增独立账号验证 / 新催化剂 / 数据超预期 | 论点变厚 |
-| 🟡 观察 | 接近 52w 高/关键阻力 / 共识拥挤 / 板块轮动 | 警觉 |
-| 🟠 减仓 | 原 thesis KOL 止盈/转口风 / 反方独立账号入场 / 数据证伪 | 论点松动 |
-| 🔴 止损 | 核心 thesis 破裂 / 基本面恶化 / 黑天鹅 | 论点崩溃 |
+| 信号 | 触发 |
+|------|------|
+| 🟢 加仓 setup | 新增独立账号验证 / 新催化剂 / 数据超预期 |
+| 🟡 观察 | 接近 52w 高/关键阻力 / 共识拥挤 / 板块轮动 |
+| 🟠 减仓 | 原 thesis KOL 止盈转口风 / 反方独立账号入场 / 数据证伪 |
+| 🔴 止损 | 核心 thesis 破裂 / 基本面恶化 / 黑天鹅 |
 
-每个信号带：账号 / UTC / URL / 原话片段。**只摆信号，不做决策**。
+每个信号带账号 / UTC / URL / 原话片段。**只摆信号，不做决策**。
 
-### Step 5.6 —（可选扩展）实盘仓位源
+> 想要第三方深度层（实盘仓位源 / 卖方评级 ingest / 独立研究 ingest）→ [references/advanced-extensions.md](references/advanced-extensions.md)，核心版不跑。
 
-> 本框架**不内置任何实盘/付费仓位源**。如果你有一个可信的实盘仓位数据流（如某交易员公开仓位、自建监控），可在此并入：把每个标的的方向×杠杆 / 仓位价值 / 开仓价 / 占保证金% 落到对应 Ticker 的「实盘持仓追踪」段。
-> **关键陷阱（如接入）**：仓位快照的"价值"列 = 实时市值（shares × 当前价），**不是成本**。判断加仓/减仓**必须看事件流**（"仓位变动"事件），不能看快照"价值"列增减——价格跌时价值也跌，会误判成减仓。
-> **同源警告**：若某实盘交易员同时也在你的推特 roster 里，**信号源计数只算 1 个**（不是两个独立背书）。
-> **合规护栏**：实盘 ≠ 投资建议，只记录事实，不据此推荐操作。
+### Step 6 — 跨账号共识主题
 
-### Step 5.6.5 — 卖方数据 ingest（持仓 + pending 标的）
-
-对每个持仓 + Orders pending 标的跑 sell-side scan（观察池每周 1 次）：
-- **A. 结构化评级 + consensus PT**：`metrics(keywords=[t], categories=["fundamentals"])` → ingest consensus high/low/median/avg + analyst_grades（最近 20 条）+ DCF + next earnings。
-- **B. 重大 PT 变动新闻**：`news(query=f"{t} upgrade downgrade price target", time_range="1w")` → 过滤"raised/lowered PT / upgrade / downgrade / 具体美元数"+ 高质量源 → 写 Research/Read/。
-- **避免噪音**：consensus 变动 >5% 才记；analyst_grades 新增 entry 才记；无变化仅更新 `last_sell_side_sync` 时间戳。
-- **新 IPO（quiet period）**：标"暂无 sell-side coverage"，等首批 initiate 再跑。
-
-### Step 5.6.6 — 独立研究 ingest（⭐ 第三方深度层，区别于卖方）
-
-> **这是一个独立信号层「独立研究」**——区别于 Step 5.6.5 的卖方评级（投行口径）。独立研究 = **第三方独立分析师的长文 thesis**（如 Substack 深度），最适合给 KOL/实盘的**定性争议做深度对照 + 第三方裁决**，并给"不编数字"提供带依据的机构级锚。
-> **为什么单列**：卖方给"目标价/评级"（多偏多、利益相关），独立研究给"完整推理 + 中立裁决"（常含反方深度）。两者互补，不能混。
-
-**调用**：
-```
-news(sources=["research"], time_range="2d", verbosity="detail", limit=10~15)
-```
-
-**⚠️ 只保留独立深度，丢弃散户媒体（关键过滤）**：`sources=["research"]` 通常返回两个子源——
-| 子源 | 标识 | 处理 |
-|------|------|------|
-| **独立深度**（独立分析师长文）| `_source:"feeds"` + `category:"research"` | ✅ **唯一采用**。`verbosity=detail` 取全文提炼论点 → 相关的写 `Research/Read/YYYY-MM-DD-<source>-<TICKER>-<topic>.md` |
-| **散户财经媒体**（聚合站/快讯）| `_source:"fmp_news"` 一类 | ❌ **剔除**（标题级噪音，不入体系）|
-
-API 无参数单取深度子源 → **post-hoc 过滤**：只保留 `_source=="feeds"`（即 `category=="research"`），其余全丢。
-
-**捞法（实测要点）**：
-- **宽扫为主**（空 query + `time_range`，每日 1 次）= 最能捞出独立深度 → 过滤掉散户媒体后，扫剩下的标题，挑与**持仓 / Orders pending / 当前活跃争议**相关的取全文展开。
-- ⚠️ **窗口别太窄**：`time_range="1d"` 常扫出 0 条深度（窗口太窄漏判）→ **默认 `2d` + 必要时定向**，避免漏。
-- **per-ticker query 命中率低**（纯 ticker 常只返散户媒体）→ 不作主力；想定向找某标的深度，用**该标的的独特主题短语**（而非纯代码）。
-- ⚠️ **坑**：泛主题 query（如 "AI capex"）可能被**同名 ticker 劫持**（某代码=该词）→ 用独特短语或走宽扫。
-
-**节奏分层**：
-- 🟢 **日维度**：宽扫 1 次（挑相关）+ 持仓标的定向（有 thesis 变动才落 Read）。
-- 🔵 **周维度**：板块级独立研究盘点（周报）。
-- 🟠 **事件触发**：财报后专项拉该标的深度研究。
-
-**落盘 + 联动**：
-- 重大深度 → `Research/Read/`（YAML 带 `source: 独立研究` / `source_quality` / tickers / sectors）。
-- **反链回 Tickers/Sectors thesis**（作"独立研究第三方 voice"），与 KOL/实盘争议**并置**——尤其把**反方深度**喂进对应 Sector 反方栏（独立研究常是反方唯一的深度来源）。
-- **去噪**：同一 thesis 不重复落；只在"新论点 / 新数据点 / 第三方裁决了某争议"时建笔记。
-- **第三方裁决价值**：当独立研究裁决了 KOL/实盘的某个争议（如"某标的财报后回调=预期满 vs 基本面破"），它给你的是 KOL 和实盘都给不了的中立视角——但**独立研究本身也无胜率回环**，作"加权参考"不作"权威判决"。
-
-### Step 6 — 提炼跨账号共识主题
-
-找**≥2 个独立账号**讨论同一标的/主题。每个主题：时间正序列引用（UTC + 账号 + URL + 论点）+ 标直接论点 vs 间接论据 + 综合判断（共识强度 强/中/弱 + 风险点）。
+找 **≥2 独立账号**讨论同一标的/主题。每个主题：时间正序引用（UTC + 账号 + URL + 论点）+ 标直接论点 vs 间接论据 + 综合判断（共识强度 强/中/弱 + 风险点）。
+⚠️ 多账号引用同一份机构数据 = **同源不是共识**（看首发时间）。
 
 ### Step 6.5 — 板块识别
 
-自下而上聚类板块。触发（任一）：≥2 KOL 讨论同一概念 / ≥3 只同类标的 ±5% 波动 / 当日板块级 catalyst。
+自下而上聚类。触发（任一）：≥2 KOL 讨论同一概念 / ≥3 只同类标的 ±5% 波动 / 当日板块级 catalyst。
+**评级**：🟢🟢 极强（龙头 +10%+ / 多源 / 硬 catalyst）｜🟢 强（龙头 +3-10% / ≥2 KOL 看多）｜⚪ 平｜🔴 弱（龙头 -5%+ / 系统性做空信号）。
+维护 `Sectors/_Sectors-Index.md` manifest；**建档标准**：A 用户持仓该板块 → 必建；B 7 天内 ≥3 条独立硬信号（不同源）且覆盖 ≥2 标的 → 建；不到阈值只记 Daily + index 标注，不建空文件。硬信号 = KOL 主动观点 / 卖方评级变动 / 财报 / 政策并购事件，**纯价格波动不算**。
 
-**评级标准**：
-- 🟢🟢 极强：龙头 +10%+ / 多源 KOL / 财报或政策 catalyst
-- 🟢 强：龙头 +3-10% / ≥2 KOL 看多
-- ⚪ 平：±3% 内 / 推文密度低
-- 🔴 弱：龙头 -5%+ / 机构系统做空信号
+### Step 6.6 — 🪞 回音室检测（持仓 + 重点关注标的）
 
-固定追踪你关心的 N 个板块（自定义，如：存储 / 光通信-CPO / 半导体大盘 / 先进封装 / AI ASIC / 电源半导体…）。新主题浮现即时加入。维护 `Sectors/_Sectors-Index.md` manifest（见 Step 10.9）。
+> **为什么进核心**：roster 是你自己挑的，**最危险的失效是它悄悄变成全员看多**（starter roster 就有这个缺口）。Step 6 的"跨账号共识"只能证明**你名单内部**一致，证明不了名单外也这么看。这一步用一个外部 KOL 池做机械对照。
 
-### Step 7 — 每账号深度（剥离废话版）⚠️ 强制逐条展开
+```
+signal(query="<TICKER> consensus", asset_type="tradfi", verbosity="concise")
+```
+
+返回 `bullish_count / bearish_count / neutral_count / total_posts` + `top_calls` 板（当前最被提及的标的及其多空分布）。
+
+**怎么用**：
+- **roster 一致 + 外部池也一致** → 共识确实广泛，但**要警惕 priced-in**（配合"52w 高位共识常已 priced-in"那条坑）。
+- **roster 一致 + 外部池有明显反方** → 🔴 **你的名单有盲区**，去把反方观点找出来读，别直接采信自己名单。
+- `top_calls` 里出现你没覆盖的标的 → 观察池候选。
+
+⚠️ **三条使用纪律**：
+1. **不能当独立信源计数**：这个 KOL 池与你 roster **可能重叠**，无法核实 → 只作**方向性对照**，不写成"N 个独立源确认"（同源计数是 F13）。
+2. **看绝对值不看比率**：实测出现过 `bull_bear_ratio: 19` 而 `bearish_count: 0` —— 分母为 0 的比率没有意义。**报 `19多/0空/20帖`，不报 "19 倍"**。
+3. **样本量必须一起报**：20 帖的 19:0 和 500 帖的 19:0 不是一回事。`total_posts < 20` 时标"样本薄，仅供参考"。
+
+### Step 7 — 每账号深度 ⚠️ 强制逐条展开
 
 **绝不允许"一句话画像总结"**。每个账号：
-1. **画像（本期）**：1-2 句对比上次变化
-2. **干货逐条**：用 1️⃣2️⃣3️⃣ 给每条有信息量的推文单独展开（标题/UTC/链接/bullet 要点/保留所有数字术语）
-3. **跳过废话**：明确标"→ 跳过"
-4. **信号质量**：A+/A/B+/B/B-/C+/C/D + 升降
-5. **行动**：可跟进 item
+1. 画像（本期，1-2 句对比上次变化）
+2. **干货逐条**：1️⃣2️⃣3️⃣ 每条有信息量的推文单独展开（UTC/链接/bullet 要点/保留所有数字术语）
+3. 废话明确标"→ 跳过"
+4. 信号质量 A+~D + 升降
+5. 可跟进 item
 
-**长度参考**：A+/A 级 800-2000 字；B+/B 级 400-1000 字；C 级 100-300 字。
-（瘦窗口/周末按实际内容缩放，不必硬凑字数。）
-
-### Step 8 — 跨主题时间轴
-
-所有进入笔记的推文按 UTC + 本地时间排成表格。
+长度参考：A+/A 级 800-2000 字；B 级 400-1000 字；C 级 100-300 字（瘦窗口按实际内容缩放，不硬凑）。
 
 ### Step 9 — 综合判断
 
 信号质量排序 / 新增观察池标的 / 多空交锋 / 板块强度 ranking。
 
-### Step 9.6 — 🔁 日内多次拉取的合并协议（落盘前必读）⚠️ 强制
+### Step 9.6 — 🔁 日内多批合并协议（🅰️ 落盘前必读）⚠️ 强制
 
-> **背景**：一天可能拉 2-3 次。若把"新信号"和"当前状态"混在一起 append，会叠成层层补丁、自相矛盾、章节错位。根因：状态和事件没分区。
+> 一天拉 2-3 次，若把"新信号"和"当前状态"混着 append，会叠成层层补丁、自相矛盾。根因：状态和事件没分区。
 
-**核心：日报分三区（决策优先结构），不同合并动作。** 按"对我的持仓有什么用"组织，不按数据源——运维信息（覆盖表/批次表）折叠到底，别堵在最前面。
+**日报分三区，不同合并动作**：
 
-| 区 | 内容 | 每次拉取动作 |
-|----|------|------------|
-| **🟦 分析层（顶部，每天就看这个）** | ⭐今日要点 / 🎯我的持仓（价/浮盈/今日新信号/健康度/Posture）/ ✅该不该动（决策摘要+Risk Budget+部署 stance）/ 🔭观察池 / ⚖️关键多空分歧（A+对决/反方收敛）/ 🧭板块强度 / 📅宏观日历 | **OVERWRITE 到最新**——改成当前值，不留旧值 |
-| **🟨 原始信号流（中部，折叠）** | 信号事件按批次分块（每批含每账号深度+共识+实盘+完整性审查）| **APPEND 新批次块**——旧块折叠，只追加本次净新增 |
-| **📋 元信息（底部，折叠）** | 拉取批次表 / 账号覆盖表 / 数据来源 / 收尾门禁 | OVERWRITE；门禁标记（账号覆盖表+完整性审查+sector-sync）必留 |
+| 区 | 内容 | 动作 |
+|----|------|------|
+| **🟦 分析层（顶部）** | TLDR / 持仓（价/浮盈/新信号/健康度/Posture）/ 决策摘要 / 观察池 / 关键多空分歧 / 板块强度 | **OVERWRITE 到最新**，不留旧值 |
+| **🟨 事件流（中部）** | 信号按批次分块（每账号深度+共识） | **APPEND 新批次块**，只写本次净新增 |
+| **📋 元信息（底部）** | 批次表 / 账号覆盖表 / 收尾门禁 | OVERWRITE；门禁标记必留 |
 
-**每次拉取的合并 7 步**：
-1. 读 `_last-pull.md` 定窗口。
-2. 拉数据（全量，Step 2 门禁）。
-3. 事件流：append `### 🔵 批次#N（最新，展开）— HH:MM` 块，只写本次净新增（与既有批次去重；内容一字不动）。同时**折叠上一批次**（见下）。
-4. 状态区：用最新数据 **OVERWRITE**（价/posture/健康度/Risk Budget/TLDR 全改当前值）。
-5. **矛盾处理（关键）**：新数据推翻旧结论 → 状态区直接改成新结论（不留旧值），事件块记一行 `🔧 修正：X 从 A→B（原因）`。**绝不在状态区留两个互相矛盾的值。**
-6. 更新「拉取批次」表 + `_last-pull.md`（仅机器状态，见 P3）+ `Daily-Index.md` 当日行（**唯一 TLDR 落点**）。
-7. 跑 Step 10.8 校准 + 10.9 门禁 + 10.95 完整性审查。
+**合并 6 步**：① 读 `_last-pull` 定窗口 → ② 全量拉（Step 2 门禁）→ ③ 事件流 append `### 批次#N — HH:MM` 块（与既有批次去重）→ ④ 状态区 OVERWRITE 成当前值 → ⑤ **矛盾处理**：新数据推翻旧结论 → 状态区直接改（不留旧值），事件块记一行 `🔧 修正：X 从 A→B（原因）`——**绝不在状态区留两个矛盾值** → ⑥ 更新批次表 + `_last-pull` + `Daily-Index` 当日行。
 
-**铁律**：状态区只有"现在"没有"曾经"（历史演变留事件流 + Decisions-Journal）；同一信号只在首次批次写一次；事件流按批次时间 append，天然有序，**不需事后重排**。
+**铁律**：状态区只有"现在"没有"曾经"；同一信号只在首次批次写一次；事件流按批次 append 天然有序。
 
-**🪗 折叠机制（事件流保持可扫）**：一天多批叠下来事件流很长 → **状态区永远展开（每天就看这个）；事件流区最新批次展开、历史批次折叠**进 `<details>`：
-```
-<details>
-<summary>📦 <b>批次#K — HH:MM（一句话主题）</b> · 历史批次，点击展开</summary>
-
-#### 批次#K 明细（窗口 …）
-…原内容一字不动…
-</details>
-```
-- append 新批次时：上一批次外壳改成 `<details>` 折叠壳（内容不动），新批次用 `### 🔵 批次#N+1（最新，展开）`。
-- **纯显示折叠**——内容仍在文件里，grep/hook/critic 照常解析。⚠️ `<summary>` 后须空一行再写 markdown（Obsidian 渲染要求）；`<details>` 开/闭/summary 数配平。盘中补价等小更新并进最新批次一行 `🔄 盘中补价`，不单独建批次。
-
-#### ⚡ 瘦批次（lite batch）协议 — v1.6（一半的批次不该付全价）
-
-**判定（机械，三条全满足 = lite）**：① 价格无更新（市场未开 / 与上批同一收盘价）；② 无新建 ticker/sector 文件；③ 当日已有批次跑过。典型：盘前补拉、非交易时段晚拉、周末第二批。
-**lite 只做**：Daily append 批次块（状态区**仅有实质变化的小节才 OVERWRITE**——价没动别碰持仓表）/ `_last-pull` 机器状态 / `Daily-Index` 批次 TLDR / **仅有净新增信号的 satellite** / 完整性=内联自查。
-**lite 不做**：dashboard banner 重写、无变化 ticker 快照行、无变化 sector 强度行、Risk Budget 重算（价没动算不出新值）。
-> 拿不准 → 按 full 跑。方向感：**拉取宁多勿漏，落盘宁 lite 勿重复**。
-
-#### 🪧 Dashboard banner 铁律 — v1.6（停止无限堆叠）
-
-dashboard 类文件（Spotlight/Portfolio/Macro 等）顶部的"日期快讯条"**只保留最新 1 条**，旧条直接删——历史 TLDR 的唯一归宿是 `Daily-Index.md`（全量保留、30 秒回查），banner 下固定一行 `> 📜 历史脉络见 [[Daily/Daily-Index]]`。
-- ⚠️ **只删日期快讯条**；交易记录、对账记录、结构性段落（轮动监控/红灯/持仓表）**绝不删**。
-- 同日多批：banner 直接 OVERWRITE 成最新批（不留同日旧批）。
-- **为什么**：同一事实写 N 处 = 写盘量翻倍 + 必然漂移（一处更新另一处忘了）。原则：**Daily 写分析、Daily-Index 写 TLDR、其他文件写指针**。
+**📎 多批次小贴士**：① dashboard 顶部日期快讯条**只留最新 1 条**（历史 TLDR 归 Daily-Index，同一事实写 N 处必然漂移）；② 瘦批次（价格没动/无新建文件）少写不少拉——状态区只 OVERWRITE 有实质变化的小节；③ 事件流太长可把历史批次折叠进 `<details>`（`<summary>` 后空一行）。
 
 ### Step 10 — 落盘（3 层）
 
-> ⚡ **编排提速铁律（落盘是全流程最大耗时段，别串行）**：① **不同文件的 Edit/Read 放同一条消息并行发**（满落盘 ~15 文件应是 2-3 个并行批次，不是 15 次串行往返；同一文件多处改 = 先 Read 一次、连续 Edit）；② **先 Read 再 Edit**——grep/cat 不满足 Edit 前置，省这步必失败重来；③ 结构已知就直接 Read 目标区间，省"grep 找行号"一跳；④ **critic 在落盘一开始就后台派出**（与写 satellite 并行，最后收补漏，别干等）；⑤ 报价/实盘/研报等数据拉取互不依赖，一个并行批次发全。
+> ⚡ **提速铁律**：不同文件的 Edit/Read 同一条消息并行发（满落盘应是 2-3 个并行批次，不是十几次串行往返）；先 Read 再 Edit；报价等数据拉取一个并行批次发全。
 
-**A. 主日报** `$VAULT/Daily/YYYY-MM-DD.md`——按 [references/output-templates.md](references/output-templates.md) 模板（两区骨架 + 各 Part）。
-**B. 每标的笔记** `Tickers/<TICKER>.md`——不存在则用 ticker 模板创建；存在则价格快照追加一行 + KOL 观点追加新日期小节 + **不动"我的仓位"段**。Frontmatter 必须有 `sector: [[Sectors/<板块>]]` 反链。
-**C. 每板块笔记** `Sectors/<板块>.md`——见下方强制同步规则。
-
-**板块文件强制同步**（满足任一必更新对应 Sectors 文件，不只是日报 Part 7）：① 当日板块汇总出现 ② 用户对该板块标的有买卖 ③ 实盘信号涉及 ④ 重大 KOL thesis/反方 ⑤ 代表标的财报/事件。
-必更新段：强度评级历史表追加一行 / 累积 thesis 追加 / 代表标的价格 / KOL 提及历史 / 反方信号（不删旧）/ 用户暴露 / 周期阶段。
-**检查方法**：跑完 `ls -la $VAULT/Sectors/*.md`，相关板块 mtime 非当天 = 漏了。
+**A. 主日报** `Daily/YYYY-MM-DD.md`——按 [references/output-templates.md](references/output-templates.md)。
+**B. 每标的** `Tickers/<TICKER>.md`——不存在则按模板创建；存在则价格快照追加一行 + KOL 观点追加新日期小节 + **不动"我的仓位"段**。frontmatter 必须有 `sector: [[Sectors/<板块>]]` 反链。
+**C. 每板块** `Sectors/<板块>.md`——满足任一必更新（不只是日报里写一笔）：① 当日板块汇总出现 ② 用户对该板块标的有买卖 ③ 重大 KOL thesis/反方 ④ 代表标的财报/事件。必更新段：强度评级历史追加一行 / thesis 追加 / 代表标的价格 / 反方信号（不删旧）。
 
 ### Step 10.5 — 决策摘要（日报 Part 6）⚠️ 强制
 
 **A. 持仓策略表**：标的 / 浮盈亏 / 多空源数 / Posture / 触发升级 / 触发降级 / 关键价位。
-Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-PROFIT-watch / HOLD-meme｜🟠 TRIM / RE-EVALUATE｜🔴 EXIT-watch。
-**B. 重点关注标的（未持仓）**：2-3 个排序 + 排名理由 + 触发买入条件 + 与持仓关系。
-**C. 跨标的协同 / 换仓建议（如有）**。
-⚠️ **Posture / trigger / 触发价 / 数量全部必须带依据**。
+Posture（7 选 1）：🟢 ADD / HOLD-conviction｜🟡 HOLD-attention / TAKE-PROFIT-watch｜🟠 TRIM / RE-EVALUATE｜🔴 EXIT-watch。
+**B. 重点关注标的（未持仓）**：2-3 个排序 + 理由 + 触发买入条件。
+**C. 跨标的协同 / 换仓建议（如有）。**
+⚠️ 每个 trigger / 触发价 / 数量必须带 [数据] 或 [原则] 依据。
 
 ### Step 10.6 — 板块汇总（日报 Part 7）⚠️ 强制
 
-每板块带：当日强度 [🟢🟢/🟢/⚪/🔴 + 数据依据] / 关键催化（KOL 引用 + 数据点）/ 用户持仓连带（直接/间接/无）/ 反方信号。日报写当日快照，Sectors/ 累积跨日演变。
+每板块：当日强度 [评级 + 数据依据] / 关键催化（KOL 引用 + 数据点）/ 用户持仓连带（直接/间接/无）/ 反方信号。日报写当日快照，Sectors/ 累积跨日演变。
 
-### Step 10.7 — 周末检测：周报 + Ticker 归档 audit
+### Step 10.7 — 周报（周末，5 节）
 
-周六/周日 + `Weekly/YYYY-W##.md` 不存在 → 问"要不要跑本周周报？"。用户单独说"跑周报"→ 直接整合现有 daily 写周报。
+周六/周日 + 本周 `Weekly/YYYY-W##.md` 不存在 → 问"要不要跑本周周报？"。
 
-**周报 12 节模板**：1 持仓演变 / 2 主题板块演变 / 3 KOL 行为 / 4 观察池演变 / 5 下周日历 / 6 周策略 / 7 **关注账号评级 review**（质量非胜率）/ 8 持仓总结+下周前瞻 / 9 **决策质量复盘**（P7：到期回顾对/错 + 模式命中，评用户决策非 KOL 胜率）/ 10 量化+没做的+开放循环 / 11 系统/流程健康度复盘（meta）/ 12 **基准对比**（组合 vs 大盘/行业 ETF 周涨跌 + 量化现金拖累）。
-两个固定动作：① 第 9 节回顾必反哺模式索引 + Pre-Trade gate；② 每份周报开头先做 carry-over 检查（上周 open loops 是否关闭）。
+1. **持仓与板块演变**（本周价格/信号/thesis 变化）
+2. **KOL 行为**（口风转变 / 关键 call / 事件日志追加）
+3. **账号评级 review**（⚠️ 评"信号质量"非胜率；评级变动需用户确认；画像按 [references/account-roster.md](references/account-roster.md) 5 维精修）
+4. **决策质量复盘**（P7：到期回顾对/错 + 模式命中——评用户决策，不评 KOL 胜率）
+5. **下周日历 + 周策略**
 
-**KOL 评级原则**：
-- **日频不评准确率、不升降评级**——只记录事件 + 时间戳 + 标的 + 当时价格。
-- **周度按"信号质量"复盘评级**（信号密度 / 独特 alpha / actionable 程度 / 可验证性噪音比 / 活跃度立场变化），**非"喊的票涨没涨"**。
-- **画像深化**（5 维：独特 alpha / 风格 tell / 盲区打折项 / 最佳用法 / 关系网）每周精修，不需用户批；**评级变动 + 候选入 roster 需用户批**。
+开头先做 carry-over 检查（上周 open loops 是否关闭）。
 
-**Ticker 归档 audit**：过去 7 天 0 提及（非持仓/非 pending）→ 移 Tickers/Archive/。KOL 再提及 → 移回。⚠️ 以 `_coverage-ledger.md` last-seen 为准，别 grep 文件内日期（会被未来财报日期污染）。
+### Step 10.8 — 衍生状态校准（每批最后）
 
-**Sector 归档 audit（与 Ticker 对称）**：某 `Sectors/<X>.md` **连续 14 天 0 新硬信号且无持仓连带** → 移 `Sectors/Archive/`（建该文件夹 + README）；roster 再给硬信号 → 移回。平时 coverage-audit 的 Sector 段提示候选，**执行在周末**。Sector 此前只增不减，本规则补上折叠。
+1. 持仓现价 + 浮盈重算（Ticker 价格快照追加 + Portfolio 更新，含挂单小表 trigger 距离）
+2. Risk Budget 占比重算（单标的/单板块/现金 ratio）→ 突破红线 → 警报进决策摘要
+3. Sectors 强度按当日走势 + thesis + 反方重评，追加评级行
+4. Macro 红灯重检（利率/VIX/DXY/行业 ETF）
+5. `Daily-Index.md` 追加当日行 TLDR（日期/关键事件/用户决策/价格节点）
 
-**Daily 日报归档 audit（让 Daily/ 保持可扫）**：Daily/ 只放当前 ISO 周 + 未被周报汇总的近 7 天 daily；**被 Weekly 汇总的那一周的 daily + 任何 ≥7 天非当前周的 daily → 移 `Daily/Archive/`**（建文件夹 + README 清单）。⚠️ **不丢信息**：TLDR 在 Daily-Index（永不归档）、整周摘要在 Weekly、全文在 Archive，`[[YYYY-MM-DD]]` 链接照常解析（Obsidian 按 basename，跨文件夹有效）。移动前 grep 全 vault 把带路径的 `[[Daily/<日期>...]]` 改成 basename `[[<日期>]]`（带 `Daily/` 前缀的移动后会断）。
+### Step 10.9 — 🚪 收尾门禁 ⚠️ 强制
 
-### Step 10.8 — 📐 衍生状态校准（强制）
+> 写完日报容易当成终点，漏掉 Sectors / Ticker。本门禁把"逐文件确认"变成强制最后一步，用 mtime 实测代替"我以为写了"。
 
-每次跑日报最后做（落盘后、汇报前）：
-1. **持仓现价 + 浮盈重算**（追加 Ticker 价格快照新行 + 更新 Portfolio）
-2. **Orders pending triggers 重算**：trigger 引用 50d/200d MA / 52w 低 → 重拉；MA 变化 >5% 或现价距 trigger <3% → 主动提醒用户。**死 Orders 冷冻（省空转）**：trigger 飘离当前价 >25% 且该 order 连续 2 周无变动 → 移到 Orders「🧊 冷清单」，停止每日重算（只周度扫一次），汇报里点名"X 已冷冻"
-3. **Portfolio Risk Budget 占比重算**（单标的/单板块/相关板块合计/低流动性/现金 ratio）→ 突破红线 → 警报进 Part 6
-4. **Sectors 强度评级**：按当日走势 + KOL thesis + 反方重评，追加评级表
-5. **Macro 红灯重检**（利率/VIX/DXY/行业 ETF）
+跑完 Step 10 + 10.8 后，逐项 `ls` mtime，当日有信号的文件 mtime 必须=当天：
 
-**Spotlight.md 必更新**（决策单页）：A 持仓（现价+涨跌+Posture+距 trigger+**thesis 健康度**）/ B Orders pending trigger 距离 / C 你的分层信号源 / D 板块 hot / 关键事件倒计时 / 今日必做。
-**Thesis 健康度算法**：① 过去 7 天 roster 主动多该标的的 KOL 数（≥3 🟢 / 1-2 🟡 / 0 🟠）② 实盘是否维持/撤（如有实盘源）③ 过去 7 天新增反方 KOL 数 → 综合 🟢强/🟡持平/🟠衰减/🔴反转/⚪无覆盖。
-**Daily-Index.md 必追加一行 TLDR**（日期/关键事件/用户决策/价格关键节点）。
+| 类别 | 判定 |
+|------|------|
+| 持仓 ticker | 有价变/新信号 → mtime=当天；确无 → 汇报点名"X 无新信号故未改" |
+| **Sectors 全板块扫描** | 逐行过 `_Sectors-Index`，每行落 ✅已更新 / ⚪无信号 / 🆕有信号未到建档阈值，**不许沉默跳过**。日报底部写机器可读声明 `<!-- sector-sync: 板块A, 板块B -->`（**逗号分隔**，无则 `none`；文件名带空格的板块必须用逗号）——hook 逐个验声明文件 mtime。⚠️ 只改 index 日期 ≠ sweep |
+| dashboard | **Daily-Index / Macro 每批必更新**；**Portfolio 仅在有持仓时必更新**（Step 10.8 要重算现价/浮盈/Risk Budget）。无持仓的用户 Portfolio 没东西可改，hook 不强制——**别为了过门禁去 touch 空文件** |
 
-### Step 10.9 — 🚪 收尾门禁（落盘完整性校验）⚠️ 强制
+**硬规则**：漏掉 ≠ 判定无信号——每个持仓 ticker + 相关 Sector 都必须被显式 touch 一次思考；mtime 实测优先于记忆；写不进时建桥接文件 `Tickers/_<标的>-待补-<日期>.md` 标红"待补"。
+配了 hook 的，结束会话时 `daily-gate-check.sh` 会机械复核这一切。
 
-> **为什么**：写完 Daily + dashboard 容易当成终点，漏掉 Sectors / ticker。本门禁把"逐文件确认"变成强制最后一步，用 mtime 实测代替"我以为写了"。
+### Step 10.95 — 🔬 完整性审查 critic — 条件触发
 
-#### 🔍 10.9.0 — 覆盖审计（⚠️ 强制）— 修"该建没建 / 久未提没归档"根因
-> 门禁只查"声明的文件动没动"（mtime），查不了 ① 该新建的没建（高频标的全靠人"注意到"）② 久未提的没归档。**机械补法**：跑 `scripts/coverage-audit.sh <今天 tool-results 目录>`：
-> - **🆕 BUILD 候选**：≥5 文件提及（🔴 强）/3-4（🟡）、无 ticker 文件、非 crypto/大盘巨头 → agent **逐个判定：建档/仅记 Daily/噪音剔除（写理由）**，强候选未处置=门禁不算过。
-> - **🗄️ ARCHIVE 候选**：读 `_coverage-ledger.md`，last-seen >14 天且非持仓/Orders。
-> 跑完更新 `_coverage-ledger.md` 的 last-seen（日股/非 $cashtag 名脚本会漏判，手动补）。
+> 门禁只查"文件碰没碰"，查不了"dump 里每条材料是否都被提炼对"。本 pass 补提炼正确性。
 
-跑完 Step 10 + 10.8 后，机械地逐项 `ls` mtime，凡当日有信号的文件 mtime 必须=当天：
+**✅ 派 subagent**：当日首个完整拉取 / 财报·政策事件日 / 新建 ≥1 ticker 或 sector / 信号量大。**⏭️ 内联自查**：同日瘦增量批（主 agent 对照 dump 与落盘扫一遍，汇报"内联自查 0 遗漏"）。拿不准 → 派。
 
-| 类别 | 判定规则 |
-|------|---------|
-| 持仓 ticker | 有价格变动或新信号 → mtime=当天；确无 → 汇报里写明"X 无新信号故未改" |
-| 在途 ticker（Orders pending）| 有新财报/卖方/异动 → 更新；否则跳过并说明 |
-| **Sectors 全板块扫描** | **逐行过 `_Sectors-Index` 的固定板块 + 动态主题**，每行落 ✅已更新 / ⚪判定无信号 / 🆕有信号未到建档阈值 三态之一，不许沉默跳过。有信号的已建档板块 mtime=当天；未建档按建档标准判定。⚠️ **只改 `_Sectors-Index` 日期不算 sweep**。**日报底部写机器可读声明** `<!-- sector-sync: <更新的板块文件名，空格分隔> -->`（无更新写 `none`）——hook 解析它并逐个验证每个声明的 `Sectors/<X>.md` mtime=当天。|
-| dashboard | Spotlight / Daily-Index / Portfolio / Macro 必更新 |
-| roster 扩展 | 有新 RT/QT 外部账号 → 追加 Candidate-Roster |
-| **独立研究宽扫（Step 5.6.6）** | **每批必扫一遍** `news(sources=["research"])` 深度子源（过滤掉散户媒体）：有与持仓/Orders/活跃争议相关的 → 取全文落 `Research/Read/` + 反链回 Tickers/Sectors；无相关 → 汇报里写"研究宽扫 N 篇，0 相关"。**不许沉默跳过**（否则系统性漏）。⚠️ 窗口默认 `2d`（`1d` 易扫空漏判）|
-
-**硬规则**：凡"漏掉" ≠ "判定无新信号"，每个持仓 ticker + 每个持仓相关 Sector 都必须被显式 touch 一次思考；mtime 实测优先于记忆；写不进时（如 iCloud dataless / EPERM）建桥接文件 `Tickers/_<标的>-待补-<日期>.md` 并标红"待补"。
-
-**`_Sectors-Index.md` 建档标准**（明确可判，杜绝"漏建"和"建空壳"）：
-- A. 用户暴露（持仓/Orders pending 有该板块标的）→ 必建
-- B. 高优先级实仓源持有该板块标的 → 建
-- C. 7 天内 ≥3 条**独立硬信号**（不同 KOL/实盘/卖方，同源不重复计）且覆盖 ≥2 标的 → 建
-- 硬信号 = KOL 主动观点 / 实盘加减 / 卖方评级 PT 变动财报 / 政策并购内部人事件。**纯价格波动不算。**
-- 不到阈值 → 只记 Daily + index 标注，不建空文件。连续 14 天 0 新硬信号且无持仓连带 → 归档。
-
-### Step 10.95 — 🔬 完整性审查 pass（提炼校验）— 条件触发
-
-> **背景**：门禁只查"文件碰没碰"，查不了"推文 dump 里每条材料是否都被提炼对、分到对的板块"。本 pass 补"提炼正确性"这层。
->
-> **🔀 触发条件（省 subagent）**：✅ **派 subagent** = 当日**首个完整拉取**（全 roster、宽窗口）/ 财报·政策**事件日** / 当日**新建≥1 ticker 或 sector** / 落盘信号量大。⏭️ **内联自查即可（不派）** = 同日后续**瘦增量批次**（窗口 <8h、净新增少、无新建文件）——主 agent 自己对照 dump 与落盘扫一遍，汇报"完整性：内联自查 0 遗漏"。拿不准 → 派（宁多勿漏）。
-
-日报落盘后（门禁过后），**派 1 个 completeness-critic subagent**，给它：① 当天所有原始 tool-result dump 路径；② 当天落盘的 Daily + `_Sectors-Index` 信号列。
-
-**subagent 任务**：反扫每个 dump，列窗口内每条相关材料信号（标的/事件/数字）→ 对照落盘文件 → 找出"在 dump 里但没进任何文件"的信号。特别查：① 非持仓板块信号（最易漏）② 反方信号（最易被乐观叙事盖掉）③ 被一句带过的数字。
-加做：**P4 一致性校验**（同一事实在 Daily/Spotlight/Ticker/Sector 四处是否一致）；**P9 数字抽查**（随机抽 4-6 个落盘数字回 dump verbatim 比对）；**板块同步交叉校验**（日报标了新信号的板块其 `Sectors/<X>.md` mtime 必须=当天，hook 查不到这层需此处兜底）。
-输出：遗漏清单 + 分类错误清单 + 不一致清单 + 数字错误清单。
-
-**收尾**：遗漏非空 → 补落盘 + 再跑门禁；为空 → 汇报"完整性审查：0 遗漏"。**重大事件日尤其不能省。**
+spawn prompt 用 [references/critic-prompt.md](references/critic-prompt.md) 模板填空。任务：反扫 dump 列全部材料信号 → 对照落盘找遗漏（特查：非持仓板块信号 / 反方信号 / 被一句带过的数字）+ P4 一致性（同一事实在 Daily/Portfolio/Ticker/Sector 四处一致）+ P9 数字抽查（4-6 个回 dump verbatim 比对）+ 板块同步交叉校验。
+遗漏非空 → 补落盘 + 再跑门禁；为空 → 汇报"完整性审查：0 遗漏"。
 
 ### Step 11 — 简短汇报
 
-- 拉了 N 账号 / 过滤后 M 条
-- 共识主题 X 个 / 涉及标的 Y 个 / 板块强度更新 Z 个
-- **Step 10.9 门禁结果**：哪些已更新 / 哪些"判定无信号未改"（点名）/ 哪些"待补"（标红）
-- 已落盘路径
-- **1-3 个最值得立刻看的点**（最强信号 / 最大分歧 / 最有反向转向）
-
-不要把全文复制到对话。
+- 拉了 N 账号 / 过滤后 M 条；共识 X 个 / 标的 Y 个 / 板块更新 Z 个
+- **⭐ 开头置顶「本批最重要 1-3 条」**（最强信号 / 最大分歧 / 最有反向转向——用户只看一行就看这个）
+- **⚡ 明确交易决策类推文单列**（买卖/加减仓/止损/挂单，带账号+原话+价位+实盘 or 口头）；无则显式写"本批无"
+- 门禁结果逐项（已更 / 判定无信号点名 / 待补标红）+ 落盘路径
+- 不把全文复制到对话。
 
 ---
 
 ## 🛑 用户表达买卖意图时（Pre-Trade Checklist）⚠️ 强制
 
-**触发**：用户说"我想加仓 X / 考虑止损 Y / X 现在能买吗 / 要不要 X / X 跌了能抄底吗"（**还没执行**）。
-
-**必做**：先跑 [Pre-Trade-Checklist] 5 项 gate（① Macro 红灯数 ② 板块强度 vs 5 天前 ③ thesis KOL 是否仍多 + 实盘是否分离 ④ Risk Budget 红线 ⑤ 决策模式归纳 + 反向 prior 5 问）。每项给状态 + 颜色（🟢🟡🔴）+ 建议。
-**绝不允许**：跳过 checklist 直接给"加仓 X 股"建议 / 替用户决定。
-**允许**：列完整状态后让用户自己决定；用户坚持执行时记录"在 X 个 🔴 下仍执行"到 Decisions-Journal。
-
----
+**触发**：用户说"我想加仓 X / 考虑止损 Y / X 现在能买吗"（**还没执行**）。
+**必做**：先跑 Pre-Trade-Checklist 5 项 gate（① Macro 红灯数 ② 板块强度 vs 5 天前 ③ thesis KOL 是否仍多 ④ Risk Budget 红线 ⑤ 决策模式归纳 + 反向 prior 5 问）。每项给 🟢🟡🔴 + 建议。
+**绝不允许**跳过 checklist 直接给"加仓 X 股"建议。**允许**列完整状态后让用户自己决定；用户在 🔴 下仍执行 → 记录到 Decisions-Journal。
 
 ## 用户仓位变动追踪
 
-用户告知买卖动作（"买了 X N 股 @ Y"），立即：
-1. Tickers/<X>.md "我的仓位"表追加一行
-2. Portfolio.md 持仓总表（股数/均价/浮盈）
-3. 对应 Sectors/<板块>.md（用户暴露金额 / 强度评级 / thesis 或反方）
-4. Decisions-Journal.md 新增决策 #N（含 1w/1m/3m 回顾 prompt）
-5. Orders.md 已执行段
-6. **不主动改用户 thesis**（除非用户明确说重写）
-
-完成后跑 `ls -la $VAULT/Sectors/*.md` 确认相关板块文件当日更新过。
-
----
+用户告知买卖（"买了 X N 股 @ Y"），立即：① `Tickers/<X>.md` "我的仓位"追加一行 ② `Portfolio.md` 持仓总表 ③ 对应 `Sectors/<板块>.md`（用户暴露/评级/thesis）④ `Decisions-Journal.md` 新增决策 #N（含 1w/1m/3m 回顾 prompt）。完成后 `ls -la $VAULT/Sectors/*.md` 确认相关板块当日更新过。
 
 ## 止损 policy 框架
 
-用户问"X 给我个止损策略"——**不能编百分比**。可选 trigger 类型：
-1. **技术位**：52w 低 / 关键 MA / IPO 以来低点 [数据]
-2. **KOL 信号**：原 thesis KOL 撤回 / 转空 [数据]
-3. **机构信号**：顶级交易员清仓 [数据]
-4. **基本面信号**：财报 miss / 重大监管 [数据]
-5. **板块同步性**：单独跌 + 板块未跟 = momentum 破位 / 板块同步跌 = 系统事件 [数据]
-
-**多触发组合**：第一次破触发减半仓 / 第二次破触发全出 / thesis 大佬出局触发全出。落到 Tickers/<X>.md 形成 v1/v2/v3 累积版本。
+用户问"X 给我个止损策略"——**不能编百分比**。可选 trigger 类型：① 技术位（52w 低/关键 MA）[数据] ② KOL 信号（原 thesis KOL 撤回/转空）[数据] ③ 基本面（财报 miss/重大监管）[数据] ④ 板块同步性（单独跌+板块未跟 = momentum 破位；板块同步跌 = 系统事件）[数据]。
+多触发组合：第一破减半 / 第二破全出 / thesis 源出局全出。落 `Tickers/<X>.md` 形成 v1/v2/v3 累积版本。
 
 ---
 
-## 容易踩的坑
+## 容易踩的坑（速记）
 
-- **"NOW" 是 ServiceNow 不是副词**——ticker 提取看上下文。
-- **同一作者一天密集输出某标的（5+ 条）**——叙事可能完整但无 prior 验证，标"集中输出待验证"。
-- **账号自己改口**——口风转变要单独标注。
-- **分析师数据被多账号引用**——多方独立 vs 同源（看时间先后 + 首发）。
-- **52w 高点附近**——KOL 共识强烈往往伴随 priced-in，风险段提醒。
-- **中概股不是核心**——US-listed 但叙事属中国监管事件，定性分清。
-- **IPO 新股技术分析不可用**——12 天 IPO 的 52w 低就是 IPO 以来低点，没"历史检验"过。
-- **板块同步性 vs 个股独立波动**——标的单独跌 + 板块未跟 = momentum 破，比单看个股价格更有信息。
+- "NOW" 是 ServiceNow 不是副词——ticker 提取看上下文。
+- **KOL 打错的 cashtag**（实测 `$APPL` ≠ AAPL）——查询返回 0 结果时先怀疑拼写，别拿相似公司顶替。
+- **行情返回的 `change` 是美元不是百分比**——涨幅自己用 `change/previousClose` 算（实测 META 31.13 → +5.59% 而非 +31%）。
+- 同作者一天 5+ 条同标的 = 叙事完整但无独立验证，标"集中输出待验证"。
+- 账号改口（几小时内翻向）单独标注——比观点本身更有信息量。
+- 52w 高位的 KOL 共识常已 priced-in。
+- IPO 新股无技术分析（"52w 低"就是上市以来低点）。
+- 个股单独跌+板块未跟 = momentum 破位；板块同步跌 = 系统事件——决策含义相反。
 
-> 📚 **完整失效模式库 → [references/failure-modes.md](references/failure-modes.md)**（v1.6）：16 个实跑踩过的坑按"症状→根因→修法"归档——输入端（漏拉/search 失效/快照陷阱）、提炼端（补丁叠层/镜像漂移）、数字端（编数/分母/价值列）、判读端（同源计数/whip-saw/承销商水分/机构报告 vs 产业一手）。本框架多数"⚠️ 强制"规则的出处都在里面。
-
----
+> 📚 完整失效模式库 → [references/failure-modes.md](references/failure-modes.md)：19 个实跑踩过的坑按"症状→根因→修法"归档，本框架多数"⚠️ 强制"规则的出处都在里面。
 
 ## 不做什么
 
-- 不喊单。不出"买入/加仓/建议建仓多少%"结论。KOL 喊了就引用，自己不背书。
-- 不预测价格。
-- **不编数字**。所有具体价格/数量/阈值/百分比必须带 [数据] 或 [原则] 来源标签。
-- 不替用户更新仓位表（除非用户告知）。
-- 不删旧日报。
+- 不喊单、不预测价格、**不编数字**（带 [数据]/[原则] 标签是硬约束）。
+- 不替用户更新仓位表（除非用户告知）。不删旧日报。
+
+## 进阶扩展
+
+用顺手了想加层 → [references/advanced-extensions.md](references/advanced-extensions.md)：
+
+| § | 层 | 节奏 |
+|---|---|---|
+| 1 | 实盘仓位源（需自备数据流） | 日 |
+| 2 | **卖方研报 ingest**（投行 thesis / 催化剂 / PT 改动 old→new） | 🟠 事件触发 + 🔵 周（实测低频，日拉常 0 篇）|
+| 3 | 独立研究 ingest（第三方长文 thesis，反方深度主要来源） | 日宽扫 |
+| 4 | digest 深读外包（省上下文最大单项） | 按 digest 体量 |
+| 5 | RT/QT 候选账号挖掘 | 日累积 + 周判定 |
+| 6 | 归档与覆盖审计 | 周 |
+| 7 | ❌ trader_position（tradfi）—— **实测数据为空，已否决** | — |
+
+每层附"是什么 + 怎么加回来 + 已知陷阱"。§2/§7 的参数与陷阱全部实测得出。

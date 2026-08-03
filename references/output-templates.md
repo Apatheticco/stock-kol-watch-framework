@@ -10,12 +10,9 @@
 Part 0.5  持仓监控
 Part 1    跨账号共识主题
 Part 2    每账号深度（800-2000 字/A+/A 账号）
-Part 3    跨主题时间轴
 Part 4    综合判断
-Part 5    用户 thesis 追踪（如有）
 Part 6    决策摘要（⚠️ 强制）
 Part 7    板块/赛道汇总（⚠️ 强制）
-Part 8    个股 vs 板块视角对照（可选）
 ```
 
 ---
@@ -59,10 +56,10 @@ batches: 1
 ## ✅ 收尾门禁
 - 账号覆盖表：N/N（逐个列 ✅/⚪/❌）
 - 完整性审查：Step 10.95 结果
-<!-- sector-sync: <更新的板块文件名空格分隔，无则 none> -->
+<!-- sector-sync: 板块A, 板块B --> （逗号分隔更新过的板块文件名；无则写 none）
 ```
 
-> Part 1（共识主题）/ Part 2（每账号深度）/ Part 3（时间轴）/ Part 4（综合判断）按需嵌入。瘦窗口可精简，但 Part 6 决策摘要 + Part 7 板块汇总**强制**。
+> Part 1（共识主题）/ Part 2（每账号深度）/ Part 4（综合判断）按需嵌入。瘦窗口可精简，但 Part 6 决策摘要 + Part 7 板块汇总**强制**。
 
 ### Part 6 · 决策摘要 ⚠️ 强制
 
@@ -106,40 +103,28 @@ created: YYYY-MM-DD
 | 时间 | 价格 | 涨跌幅 | 市值 | 区间(52w) | 前收 |
 <!-- 追加新行，不覆盖旧行 -->
 
-## 🎯 目标价追踪 ⚠️ 持仓标的必填，分 3 层日期可见性
+## 🎯 目标价追踪 ⚠️ 持仓标的必填
 
-### 1️⃣ Consensus Snapshot — YYYY-MM-DD [数据源]
+### Consensus Snapshot — YYYY-MM-DD [数据源]
 | 来源 | 目标价 | snapshot 日期 | vs 当前 | 含义 |
-| Consensus median/average/high/low | $X | ... | ±N% | ... |
-| DCF（模型）| $X | ... | ±N% | 公允价值 |
+| Consensus median/high/low | $X | ... | ±N% | ... |
 | 52w 高 / 50d MA / 200d MA / 用户成本 | $X | — | ±N% | ... |
 > ⚠️ caveat：consensus 只返回当前 aggregated 数字，不返回每家投行 PT 日期。中位数真实性取决于多少家最近 reaffirmed 过。
-
-### 2️⃣ 📅 PT 变动历史（按时间倒序）
-| 日期 | 投行/来源 | PT 变动 | Rating | 链接 |
-
-### 3️⃣ Analyst 评级分布 [数据源]
-| 投行 | 当前评级 | 上次变动 | 备注(PT) |
-汇总：Buy/Hold/Sell 各家数。
-> 💡 数据缺口：评级数据多追踪变动不追踪每家 PT 历史。完整 PT 时间线需 TipRanks/Bloomberg。
 
 ### KOL 隐性目标 [数据：roster 推文]
 | KOL | 日期 | 引用 | 隐含 PT |
 
 ### 三档风险信号
-| 🟢 加仓 | 第 2 家投行跟随高 PT | 共识集体上调 |
-| 🟡 观察 | 当前价位条件 | ... |
-| 🔴 TRIM | 关键投行撤回 OR 跌穿关键 MA | 单家依赖破裂 |
+| 🟢 加仓 | （带依据的升级条件） |
+| 🟡 观察 | （当前价位条件） |
+| 🔴 TRIM | （关键 thesis 破裂 OR 跌穿关键 MA [数据]） |
 
-### 下次财报：YYYY-MM-DD（EPS/营收预期 + 历史超预期 + 看点）
+### 下次财报：YYYY-MM-DD（EPS/营收预期 + 看点）
 
 ### ⚠️ 数据源误识别处理
-如返回 "asset_kind: crypto"（同名 token 误识别，如 LITE/CRCL）→ 标"暂无 PT 数据，待手动 web fetch"。**不要编 PT 数字。**
+如返回 "asset_kind: crypto"（同名 token 误识别，如 LITE≠Litecoin）→ 标"暂无 PT 数据，待手动补"。**不要编 PT 数字。**
 
-## （可选）实盘持仓追踪
-> 仅当你接入了实盘仓位源时填。框架不内置任何具体来源。
-> 记录：交易员 / 方向×杠杆 / 仓位价值 / 开仓价 / 占保证金% / 最近动作。
-> ⚠️ "价值"列=实时市值非成本；加减仓判断看事件流不看快照。同源账号信号计 1 个。
+> 进阶：每家投行 PT 变动历史 / 评级分布 ingest / 实盘持仓追踪段 → [advanced-extensions.md](advanced-extensions.md)。
 
 ## KOL 观点
 ### YYYY-MM-DD

@@ -1,175 +1,161 @@
 <!-- Language: English | 中文: USER-GUIDE.md -->
+**Language / 语言**: English (this file) · [中文](USER-GUIDE.md)
 
-# User Guide — How to use Stock KOL Watch
+# Operating Manual
 
-This guide is for the **human operator**: what to install, what to configure, **what info you need to provide**, and how to talk to it day to day.
-(`README_EN.md` = overview; `SKILL.md` = the workflow spec the AI reads; this file = your operating manual.)
+> This is the **operating manual**: configuration details, the full command table, and what to do when something goes wrong.
+> Don't know what this is yet → read [README_EN.md](README_EN.md) first. Want the workflow spec the AI follows → [SKILL.md](SKILL.md).
 
----
-
-## 0. One-sentence model
-
-You maintain a "roster of stock KOLs you follow." Each day you tell Claude "run KOL watch," and it pulls those accounts' new tweets, distills them into a daily brief, updates a running note for each ticker and sector, tracks signals on your holdings, and lands every conclusion into your Obsidian (or any Markdown) vault — **with source links for traceability, and without making buy/sell decisions for you**.
+After installing (`cp -r stock-kol-watch-framework ~/.claude/skills/stock-kol-watch`), if you just want a single trial run, say "run a quick brief on these 5 accounts" — no configuration needed. **Everything below is only for long-term accumulation (🅰️ mode).**
 
 ---
 
-## Two modes (pick before you run)
+## 1. Configuration
 
-- 🅰️ **Flagship (persistent)**: lands daily brief + running notes + decision loop + weekly; value compounds over time. Needs a vault.
-- 🅱️ **Quick brief (no vault)**: an in-conversation brief only, zero-config, useful in a single run — good for trying it out / the occasional glance.
+### 1.1 Vault path
 
-How to trigger: say "**quick brief / just try it**" → 🅱️; "**full version / run the daily**" → 🅰️; if unspecified it checks whether `KOL_VAULT` is set (set → 🅰️, unset → 🅱️). In 🅱️ mode, holdings signals require you to **state your positions on the spot** (no vault = no history), and cross-day accumulation / decision reviews aren't available — upgrade to 🅰️ for long-term use. The install/config below targets 🅰️; for 🅱️ only, skip the vault and just wire a data-source MCP + supply a roster.
-
-## 1. Prerequisites
-
-| You need | Notes |
-|----------|-------|
-| **Claude Code** | This framework is a Claude Code skill |
-| **A Markdown vault** | Obsidian recommended; a plain folder works too. All output lands here |
-| **A tweet + market data source (MCP)** | Reference impl uses the `followin` MCP (tweets/quotes/sell-side/signals). Others work too — just swap the calls |
-| **(Optional) Stop-hook permission** | Needed to enable the mechanical close-out gate |
-
----
-
-## 2. Install
-
-Drop the whole `stock-kol-watch-framework/` directory into your skills folder:
-
-```bash
-cp -r stock-kol-watch-framework ~/.claude/skills/stock-kol-watch
-```
-
-(Or distribute as a plugin. The skill name comes from the `name` field in `SKILL.md` frontmatter.)
-
----
-
-## 3. Configure (first time, ~10 min)
-
-### 3.1 Set the vault path
 ```bash
 export KOL_VAULT="/path/to/your/vault/Stock-Watch"
 ```
-Put it in `~/.zshrc` / `~/.bashrc` to persist. Everything lands under it.
 
-### 3.2 Enable the close-out gate hook (optional but strongly recommended)
+Put it in `~/.zshrc` / `~/.bashrc` to persist. Everything lands under it. Once this is set, "run KOL watch" defaults to the persistent mode.
+
+### 1.2 Where your account list lives
+
+The 5 built-in starters are at the top of [references/account-roster.md](references/account-roster.md). **Copy them into `$KOL_VAULT/references-roster.md`** — the copy inside the skill directory is a template; the running workflow reads the one in your vault. Edit that file to change your list.
+
+⚠️ Those 5 lean semiconductors and include **no bear voice**. Add 1–2 steady skeptics before real use, or your list will systematically show you only reasons to be long.
+
+### 1.3 The close-out gate hook (optional, strongly recommended)
+
 Add to `~/.claude/settings.json`:
+
 ```json
 { "hooks": { "Stop": [ { "hooks": [ { "type": "command",
-  "command": "bash ~/.claude/skills/stock-kol-watch/scripts/daily-gate-check.sh",
+  "command": "KOL_VAULT=/path/to/your/vault/Stock-Watch bash ~/.claude/skills/stock-kol-watch/scripts/daily-gate-check.sh",
   "timeout": 15 } ] } ] } }
 ```
-Effect: when you try to end a session after running the brief, the hook mechanically checks "were all the files that should be updated actually updated?" and blocks you if not — turning "I think I wrote it" into "the system won't let me cut corners."
 
-### 3.3 Roster (5 accounts built in, ready to run)
-**`references/example-roster.md` already ships 5 high-profile public accounts as a starter — runs out of the box** (⚠️ illustrative, NOT a recommendation):
+⚠️ **Inline the vault path in the command.** Don't count on it reading your zshrc export — the hook process may not inherit it, and when it doesn't, the gate **silently never runs** and you get no warning.
 
-| Role | Account |
-|------|---------|
-| Supply chain / memory | @jukan05 |
-| AI / semi supply chain | @aleabitoreddit (Serenity) |
-| Semis / optics · events | @nft_hu |
-| Memory narrative / US-listed | @xiaomustock |
-| Macro / cross-asset | @qinbafrank |
+**What it enforces**: when you try to end a session after running the daily, it mechanically checks the following and blocks you if anything is missing — turning "I think I wrote it" into "the system won't let me cut corners."
 
-- **To run now**: 🅰️ copy these 5 into `$KOL_VAULT/references-roster.md`; 🅱️ just tell Claude these 5 — you get a first brief immediately.
-- **For the long run**: replace with your own 8–15 via the methodology in `references/account-roster.md`. ⚠️ **These 5 lean semiconductors with no bear voice — add a skeptic before real use** (don't go all-bull).
+| Check | Notes |
+|-------|-------|
+| `Daily-Index.md` / `Macro.md` / `_Sectors-Index.md` touched today | the three files that change every batch |
+| `Portfolio.md` touched today | **only enforced when you actually hold something**; no positions reported → no block |
+| The brief contains a coverage table + completeness review | proves the pull and verification steps weren't skipped |
+| Sector files named in the brief's `sector-sync` line really were updated | prevents "bumped the index date but never touched the sector note" |
 
-Selection principles (when expanding): cover your main threads / diverse viewpoints (analyst·trader·sell-side·macro) / keep 1–2 steady bears.
-
-Selection principles (see the roster template):
-- Cover the few main threads you care about (e.g. memory, optical, power semis…)
-- **Diverse viewpoints**: an analyst, a trader, a sell-side aggregator, a macro voice — one or two of each
-- ⚠️ **Keep at least 1–2 steady bear/skeptic voices** — don't let the list become all-bull (the most dangerous blind spot)
+**Verify your install once**: deliberately backdate `Macro.md` (`touch -t 202601010900 $KOL_VAULT/Macro.md`), then end a session in which you ran the daily — **getting blocked means it works**. If you're not blocked, the hook isn't firing; check the path.
 
 ---
 
-## 4. ⚠️ What you need to provide (just 3 things)
-
-| Info | Example |
-|------|---------|
-| **Holdings** (ticker/cost/qty) | "I hold 10 shares of $AAAA @ $50" |
-| **Cash** (⚠️ incl. money-market/near-cash) | "$X cash + $Y money-market" |
-| **Report every fill** (lifeline of holdings accuracy) | "I bought 20 shares of $CCCC @ $30" |
-
-> Everything else is handled: **roster** ships 5 built-in starters (swap later if you like); **timezone/window** has a default; **data source** is configured once when you install the MCP; thesis is optional.
-
-**Two hard rules**: ① position size/cost only comes from what you tell it (no broker link) — **forget to report a fill → P&L / weightings / thesis silently cascade wrong**; ② report cash in full (incl. money-market), or it refuses to compute Risk Budget (won't fabricate a denominator).
-
----
-
-## 5. First run (cold start)
+## 2. First run (cold start)
 
 A fresh vault is empty. The first time, just say:
 
 > **"Initialize the vault, then run KOL watch"**
 
-Claude will (this is SKILL **Step 0.0 first-time init**, 🅰️ flagship only):
-1. Create the directory skeleton (Daily/ Tickers/ Sectors/ Watchlist/ Weekly/) + **12 seed files** per `references/vault-skeleton.md`: references-roster / Portfolio / Orders / Decisions-Journal / Pre-Trade-Checklist / Macro / Spotlight / Daily-Index / _Sectors-Index / _last-pull / Candidate-Roster / _coverage-ledger
-2. Ask for your holdings, cash, timezone (roster can start with the **built-in 5 starter**; swap later if you like)
-3. Pull the roster once and produce the first daily brief
+It will:
 
-After that, daily use is just "run KOL watch." (🅱️ quick-brief mode needs no init — skip this step.)
+1. Create the directories (`Daily/` `Tickers/` `Sectors/` `Weekly/`) + **8 seed files**
+   `references-roster` · `Portfolio` · `Decisions-Journal` · `Pre-Trade-Checklist` · `Macro` · `Daily/Daily-Index` · `Sectors/_Sectors-Index` · `_last-pull`
+2. Ask for your **holdings, cash (incl. money-market), and timezone**
+3. Pull the list once and produce the first daily brief
+
+After that it's one sentence a day.
+
+> 💡 You can run it with no positions at all — you still get the daily brief and sector notes, just with the holdings sections empty. Watching for a while before buying anything is a perfectly reasonable way to use it.
 
 ---
 
-## 6. Day-to-day commands
+## 3. Full command table
+
+### Pulling data
 
 | You say | It does |
 |---------|---------|
-| **"run KOL watch" / "pull the latest"** | Pull the full roster → daily brief → update tickers/sectors → recalibrate → gate → report the 3 things most worth seeing |
-| **"catch up on last night" / "evening pull"** | Incremental pull from the last window, **merged** into the same day's brief (two-zone protocol) |
-| **"I bought/sold X N shares @ Y"** | Updates Tickers + Portfolio + Sectors + Decisions-Journal + Orders (automatically) |
-| **"can I buy X / should I add to X"** | Runs the 5 pre-trade gates (Macro / sector / thesis / Risk Budget / reverse-prior), lays out the state, lets you decide — **never decides for you** |
-| **"give me a stop-loss plan for X"** | Offers 4–5 **sourced** trigger candidates (technical level / KOL / institutional / fundamental / sector-sync), you pick |
-| **"walk me through account X's logic"** | Reads the daily brief's per-account section |
-| **"show me everything on X"** | Reads `Tickers/X.md` |
-| **"how has sector X evolved"** | Reads `Sectors/X.md` strength table |
-| **"run the weekly" / on weekends** | 12-section weekly review (holdings evolution / sectors / account-rating review / decision-quality review / benchmark comparison…) |
-| **"add @XX / drop @YY"** | Adjusts the roster for this run, asks whether to update the roster file |
+| "run KOL watch" / "pull the latest" | Full pull → daily brief → update ticker/sector notes → recalibrate prices → pass the gate → report the top 3 |
+| "catch up on last night" | Incremental pull from the last checkpoint, **merged into the same day's brief** (never two files contradicting each other) |
+| "pull 12h" / "pull the last week" | Uses your window instead of the default natural-day split |
+| "today just @XX and @YY" | Pulls only those two — the coverage table marks the rest as not pulled rather than pretending they were |
+
+### Trades and decisions
+
+| You say | It does |
+|---------|---------|
+| "I bought 100 XXXX @ $85" | Updates the holdings table + ticker note + sector note, and **creates a decision entry** with 1-week / 1-month / 3-month review prompts |
+| "I sold…" / "I closed XXXX" | Same, and records the close in the decision journal |
+| "should I buy / add to XXXX now?" | Runs the 5 pre-trade checks, lays out the state, **and lets you decide** |
+| "give me a stop-loss plan for XXXX" | Offers 4–5 **sourced** trigger candidates for you to pick from |
+| "review for decision #3: I was wrong, because…" | Updates the review field + folds it into the decision-pattern index + writes the lesson into your pre-trade checklist |
+
+### Looking things up
+
+| You say | It does |
+|---------|---------|
+| "show me everything on XXXX" | Reads `Tickers/XXXX.md` (price history + who said what when + bear cases + your position) |
+| "how has the XXXX sector evolved" | Reads the strength-rating table in `Sectors/<sector>.md` |
+| "what has @XX been saying lately" | Reads that account's section in the daily briefs |
+| "what happened over the past week" | Reads `Daily/Daily-Index.md` (one TLDR line per day) |
+
+### Maintenance
+
+| You say | It does |
+|---------|---------|
+| "add @XX" / "drop @YY" | Adjusts for this run and asks whether to write it into the list file (**never edits it unilaterally**) |
+| "run the weekly" (it also asks on weekends) | 5 sections: holdings/sector evolution, KOL behavior, account-quality review, **your own decision-quality review**, next week's calendar |
+| "@XX has been getting worse lately" | Logs the observation; **rating changes are a weekly-cadence decision** and need your confirmation |
 
 ---
 
-## 7. Where to find the output
+## 4. Where the output lives
 
-| To see | Open |
-|--------|------|
+| You want | Open |
+|----------|------|
 | What happened today | `Daily/YYYY-MM-DD.md` |
-| 30-second lookback over recent days | `Daily/Daily-Index.md` |
-| Your holdings overview | `Portfolio.md` |
-| One-page decision view | `Spotlight.md` (holdings + pending + hot sectors + today's to-dos) |
-| A ticker's full history | `Tickers/<TICKER>.md` |
-| How a sector evolved | `Sectors/<板块>.md` |
-| Each decision + its review | `Decisions-Journal.md` |
+| A 30-second look back over recent days | `Daily/Daily-Index.md` |
+| Full portfolio + pending orders | `Portfolio.md` |
+| Everything on one ticker | `Tickers/<TICKER>.md` |
+| How a sector evolved | `Sectors/<sector>.md` |
+| Every decision + its reviews | `Decisions-Journal.md` |
+| What to check before trading | `Pre-Trade-Checklist.md` |
 | This week's review | `Weekly/YYYY-W##.md` |
 
----
-
-## 8. FAQ
-
-**Q: Will it place orders / shout calls?**
-No. It only organizes info, lays out signals, and runs pre-trade gates. You always decide and execute yourself.
-
-**Q: Will it tell me whether a KOL's call was "right"?**
-Not daily — it only logs events + time + price at the time. Weekly it reviews ratings by *signal quality* (not whether the call went up). Rating changes need your confirmation.
-
-**Q: Why does it sometimes refuse to give a specific level/percentage?**
-"No made-up numbers" is a hard rule. Without data or a principle behind it, it won't give a number — only a qualitative direction. That's a feature, not a bug.
-
-**Q: What if data is pulled incompletely / an account is missed?**
-Two safety nets: the pull-coverage gate (forces a full roster coverage table) + the completeness critic (reverse-scans the raw tweets for omissions). But **the input side is on you** — the roster is yours to define, holdings yours to report.
-
-**Q: Can I use a data source other than followin?**
-Yes. followin is the data-source adapter layer; replace the `mcp__followin__*` calls in `SKILL.md` with your tweet/market MCP — the methodology is unchanged.
-
-**Q: What about live-position monitoring?**
-The framework bundles no live/paid source (sanitized out). SKILL Step 5.6 leaves a generic extension point — wire your own trustworthy live feed, minding the traps noted there ("value column ≠ cost", "same source counts as 1").
+The daily brief itself has two zones: **the top is "current state"** (overwritten to the latest values on every pull) and **the bottom is "what happened"** (appended per batch, never deleted). So if you pull three times a day, the top always reflects the latest read and the middle holds the full signal log.
 
 ---
 
-## 9. One-line getting-started
+## 5. When something goes wrong
+
+**I forgot to report a fill and only remembered days later**
+Just say "I bought N XXXX at $Y on <date>, forgot to mention it." It backfills and dates the decision entry correctly. **Sooner is better** — while the position is wrong, your P&L, position weights and thesis health all drift wrong, **with no alarm whatsoever** (it has no broker connection, so it has no way to catch it).
+
+**I didn't run it for several days**
+Just say "run KOL watch" as usual. It reads the last checkpoint, and if the gap exceeds 36 hours it flags the gap length at the top of the brief and widens the window. ⚠️ If a prolific account posted a lot during the gap, one pull may not reach far enough back — the script warns ("earliest item on this page is still later than the cutoff"); when you see that, have it paginate.
+
+**The gate blocked me from ending the session**
+Something that should have been updated wasn't. It lists exactly what's missing — have it finish, then end. **Don't work around it by touching files** — preventing exactly that is the only reason the gate exists.
+
+**One account failed to pull**
+The coverage table marks it ❌. For a few failures, just have it retry those accounts; no need to re-run the whole batch.
+
+**It refuses to give me a specific price level**
+By design. Numbers with no data or stated principle behind them don't get written; you get direction instead. If you want a number, give it a computable anchor ("based on the 50-day MA" / "sized to bring the position back to 30%").
+
+**I want to replace my whole list**
+Edit `$KOL_VAULT/references-roster.md`; it takes effect on the next run. Methodology for building, rating and maintaining a list → [references/account-roster.md](references/account-roster.md).
+
+**I want the advanced layers (live positions, broker research, etc.)**
+See [references/advanced-extensions.md](references/advanced-extensions.md) — 7 sections, each with how to wire it and the known traps. The core deliberately ships without them; add them once the basics are routine.
+
+---
+
+## 6. Checklist
 
 1. `export KOL_VAULT=...`
-2. Wire the hook (optional)
-3. Tell Claude your holdings + cash (incl. money-market); roster can start with the **built-in 5 starter**
-4. Say "initialize the vault and run KOL watch"
-5. After that, "run KOL watch" daily; whenever you fill, say one line "I bought/sold …"
+2. Copy the 5 starters into `$KOL_VAULT/references-roster.md` (and add a bear)
+3. Configure the hook (optional) + verify it once
+4. Say "initialize the vault and run KOL watch", tell it your holdings and cash (incl. money-market)
+5. Then it's one sentence a day; **report every fill**
